@@ -17,7 +17,7 @@ SSH into the instance and run:
 
 ```bash
 sudo apt update
-sudo apt install -y docker.io docker-compose-plugin git
+sudo apt install -y docker.io docker-compose-v2 git
 sudo systemctl enable --now docker
 sudo usermod -aG docker "$USER"
 exit

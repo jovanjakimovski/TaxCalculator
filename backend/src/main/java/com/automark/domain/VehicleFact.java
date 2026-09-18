@@ -1,0 +1,7 @@
+package com.automark.domain;
+import com.fasterxml.jackson.databind.JsonNode; import jakarta.persistence.*; import org.hibernate.annotations.JdbcTypeCode; import org.hibernate.type.SqlTypes; import java.time.Instant; import java.util.UUID;
+@Entity @Table(name="vehicle_facts") public class VehicleFact {
+ @Id private UUID id=UUID.randomUUID(); @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(nullable=false) private Vehicle vehicle; @Enumerated(EnumType.STRING) @Column(nullable=false) private FactType factType; @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition="jsonb",nullable=false) private JsonNode value; private Instant observedAt; @Column(nullable=false) private String sourceId; @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(nullable=false) private SourceQuery sourceQuery; private Double confidence; @Column(nullable=false) private Instant createdAt=Instant.now();
+ protected VehicleFact(){} public VehicleFact(Vehicle v,FactType type,JsonNode value,Instant observed,String source,SourceQuery query,Double confidence){vehicle=v;factType=type;this.value=value;observedAt=observed;sourceId=source;sourceQuery=query;this.confidence=confidence;}
+ public UUID getId(){return id;} public FactType getFactType(){return factType;} public JsonNode getValue(){return value;} public Instant getObservedAt(){return observedAt;} public String getSourceId(){return sourceId;} public UUID getSourceQueryId(){return sourceQuery.getId();}
+}

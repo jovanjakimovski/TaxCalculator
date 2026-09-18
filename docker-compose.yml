@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: automark
+      POSTGRES_USER: automark
+      POSTGRES_PASSWORD: automark
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U automark -d automark"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+

@@ -1,0 +1,1 @@
+package com.automark.connector; import org.springframework.stereotype.Component; @Component public class MockDamageConnector extends AbstractMockConnector { String id(){return "MOCK_DAMAGE";} String eventType(){return "DAMAGE_RECORD";} }

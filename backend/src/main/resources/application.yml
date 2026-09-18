@@ -1,0 +1,17 @@
+spring:
+  application.name: TaxCalculator
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/automark}
+    username: ${DATABASE_USERNAME:automark}
+    password: ${DATABASE_PASSWORD:automark}
+  jpa:
+    hibernate.ddl-auto: validate
+    open-in-view: false
+  jackson:
+    default-property-inclusion: non_null
+server:
+  port: ${PORT:8080}
+automark:
+  rdw:
+    base-url: https://opendata.rdw.nl/resource/m9d7-ebf2.json
+

@@ -6,7 +6,7 @@ Pre-requisites: docker / npm
 Steps:
 - git clone https://github.com/jovanjakimovski/TaxCalculator.git
 - docker compose -f docker-compose.aws.yml up -d --build
-- npm run generate-workbook -- "file.csv" --api http://localhost/api/tax/realized-gains
+- npm run frontend\generate-workbook -- "file.csv" --api http://localhost/api/tax/realized-gains
 
 Result Path: \TaxCalculator\filename - Copy-tax-workpaper.xlsx
 

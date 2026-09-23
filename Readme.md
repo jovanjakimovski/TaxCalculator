@@ -54,7 +54,7 @@ The generated report is an Excel workbook with the following sheets:
 
 
 
-=============
+----------------
 
 TaxCalculator is a Java/Spring Boot and React application for preparing a North Macedonia tax workpaper from an Interactive Brokers (IBKR) Activity Statement CSV.
 

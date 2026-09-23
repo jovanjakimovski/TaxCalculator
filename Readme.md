@@ -36,6 +36,22 @@ npm --prefix frontend run generate-workbook -- "file.csv" --api http://localhost
 docker compose -f docker-compose.aws.yml down
 ```
 
+## Report Output
+
+The generated report is an Excel workbook with the following sheets:
+
+| Sheet | Contents |
+|---|---|
+| **Sheet 1** | Original IBKR Activity Statement |
+| **Sheet 2** | Official USD–MKD conversion rates, fetched from the NBRM Exchange Rates service |
+| **Sheet 3** | View of all transactions (currently includes stocks, options, and interest) |
+| **Sheet 4** | Summary view — shows total taxes at **10%** |
+
+### Notes on tax calculation
+- Losses are deducted from profits **only within the same month** — tax can currently only be reduced on a monthly basis, not carried forward or applied against other months.
+- **Interest losses are excluded** from deduction entirely.
+
+
 
 
 =============

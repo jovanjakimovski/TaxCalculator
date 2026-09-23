@@ -34,6 +34,51 @@ public class RealizedGainsService {
     return calculate(input, fileName, offsetDays, taxRate, taxRate, taxRate, taxRate, offsetSecuritiesLosses, offsetForexLosses, false);
   }
 
+  public List<ExchangeRateRow> exchangeRates(LocalDate start, LocalDate end, int offsetDays) throws IOException {
+    if (start.isAfter(end)) throw new IllegalArgumentException("Rate range start must not be after end.");
+    LocalDate requestedStart = start.minusDays(offsetDays);
+    LocalDate requestedEnd = end.minusDays(offsetDays);
+    Map<LocalDate, Rate> fetched = fetchRates(requestedStart, requestedEnd);
+    List<ExchangeRateRow> rates = new ArrayList<>();
+    for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+      LocalDate requested = date.minusDays(offsetDays);
+      Rate rate = fetched.get(requested);
+      if (rate == null) {
+        rate = fetched.entrySet().stream().filter(entry -> !entry.getKey().isAfter(requested)).max(Map.Entry.comparingByKey()).map(Map.Entry::getValue).orElse(null);
+      }
+      if (rate == null) rate = rate(requested);
+      cacheRate(requested, rate);
+      rates.add(new ExchangeRateRow(date.toString(), rate.date.toString(), rate.value));
+    }
+    return rates;
+  }
+
+  private Map<LocalDate, Rate> fetchRates(LocalDate start, LocalDate end) throws IOException {
+    Map<LocalDate, Rate> rates = new HashMap<>();
+    String url = "https://www.nbrm.mk/KLServiceNOV/GetExchangeRate?StartDate=" + API_DATE.format(start) + "&EndDate=" + API_DATE.format(end);
+    try {
+      HttpResponse<String> response = http.send(HttpRequest.newBuilder(URI.create(url)).header("Accept", "application/xml").GET().build(), HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() >= 400) throw new IOException("NBRNM returned HTTP " + response.statusCode());
+      Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(new InputSource(new StringReader(response.body())));
+      NodeList entries = doc.getDocumentElement().getChildNodes();
+      for (int i = 0; i < entries.getLength(); i++) {
+        if (entries.item(i).getNodeType() != Node.ELEMENT_NODE) continue;
+        Element entry = (Element) entries.item(i);
+        if (!"USD".equals(text(entry, "Oznaka"))) continue;
+        LocalDate date = LocalDate.parse(text(entry, "Datum").substring(0, 10));
+        BigDecimal middle = new BigDecimal(text(entry, "Sreden"));
+        BigDecimal nominal = new BigDecimal(text(entry, "Nomin"));
+        rates.put(date, new Rate(date, middle.divide(nominal, 10, RoundingMode.HALF_UP)));
+      }
+      return rates;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("NBRNM request interrupted", e);
+    } catch (Exception e) {
+      throw new IOException("Could not parse NBRNM response", e);
+    }
+  }
+
   public RealizedGainsResponse calculate(InputStream input, String fileName, int offsetDays, BigDecimal taxRate, boolean offsetSecuritiesLosses, boolean offsetForexLosses, boolean offsetAcrossSections) throws IOException {
     return calculate(input, fileName, offsetDays, taxRate, taxRate, taxRate, taxRate, offsetSecuritiesLosses, offsetForexLosses, offsetAcrossSections);
   }

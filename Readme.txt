@@ -56,7 +56,8 @@ Input validation and review
 * The result shows stock rows found, excluded non-stock rows, excluded loss rows, and incomplete rows skipped.
 * Trades are displayed chronologically.
 * Stock results can be filtered by all, gains, or losses and searched by symbol/date.
-* The detailed export includes stock, dividend, and interest sections.
+* The Excel export contains three sheets: the original IBKR Activity Statement, a complete calendar of NBRNM USD conversion rates for the statement period, and a formula-driven securities calculation workpaper. Calculation cells reference the first two sheets; FIFO holding days remain an explicit input from the existing lot-matching service.
+* The script-generated Excel export contains four sheets: `Activity Statement`, `Conversion Rates`, `Calculation`, and `Summary`. Interest transactions are included in the Calculation table with `ASSET CLASS` set to `Interest`. Negative interest is visible but never reduces securities or monthly tax; Summary tax applies positive securities and positive interest amounts separately within each month.
 
 User interface
 --------------
@@ -101,6 +102,15 @@ Open:
 The backend API runs on:
 
     http://localhost:8080
+
+Generate a workbook without the web app
+----------------------------------------
+
+Start PostgreSQL and the backend as above, then run the generator from the frontend directory:
+
+    npm run generate-workbook -- "..\U16047828_2025_2025 - Copy.csv"
+
+The command writes a `-tax-workpaper.xlsx` file next to the CSV. Optional flags include `--output`, `--offset`, `--securities-rate`, `--dividend-rate`, `--forex-rate`, `--interest-rate`, `--include-forex`, `--offset-securities`, `--offset-forex`, and `--offset-all`. Set `TAX_API_URL` or pass `--api` to use a different backend URL.
 
 Verification commands
 ---------------------

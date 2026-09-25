@@ -2,39 +2,33 @@ TaxCalculator
 =============
 
 
-## Local Usage — Generating a MKD Tax Report
+## Quick Start (Local)
 
-All data is stored locally (filesystem / PostgreSQL Docker volume) — nothing leaves your machine.
+Requires Docker Desktop. Node.js and npm are needed for workbook generation; the launcher installs project dependencies if missing. No database password or `.env` file is needed for local use.
 
-### Prerequisites
-- [Docker](https://www.docker.com/products/docker-desktop/) (with Docker Compose)
-- [Node.js](https://nodejs.org/) + npm
+Open the app:
 
-### 1. Clone the repository
-```bash
-git clone https://github.com/jovanjakimovski/TaxCalculator.git
-cd TaxCalculator
+```powershell
+.\tax.ps1 ui
 ```
 
-### 2. Start the backend
-```bash
-docker compose -f docker-compose.aws.yml up -d --build
+Generate a workbook directly from an IBKR CSV:
+
+```powershell
+.\tax.ps1 workbook "C:\path\to\activity.csv"
 ```
 
-### 3. Generate the report
-Run from the repo root — no need to `cd` into `frontend`:
+The workbook is saved beside the CSV. The local database is bound to localhost and uses a local-only default password.
 
-```bash
-npm --prefix frontend run generate-workbook -- "file.csv" --api http://localhost/api/tax/realized-gains
+For test data that contains no personal account information, use the synthetic statements in `test-data/`. They cover gains/losses and interest, optional Forex, and a statement without interest. Upload any of them in the UI or pass one to the workbook command.
+
+Stop the local stack while keeping its database volume:
+
+```powershell
+.\tax.ps1 down
 ```
 
-> `file.csv` is the path to your input activity statement file.
-
-
-### Stopping the stack
-```bash
-docker compose -f docker-compose.aws.yml down
-```
+For AWS testing, `docker-compose.aws.yml` also runs without `.env` and uses the test-only password `automark-test-only`. Replace it with a strong secret before exposing any deployment outside a trusted test environment. To override it, set `POSTGRES_PASSWORD` in `.env` or the shell, then run `docker compose -f docker-compose.aws.yml up -d --build`.
 
 ## Report Output
 
@@ -42,10 +36,11 @@ The generated report is an Excel workbook with the following sheets:
 
 | Sheet | Contents |
 |---|---|
-| **Sheet 1** | Original IBKR Activity Statement |
-| **Sheet 2** | Official USD–MKD conversion rates, fetched from the NBRM Exchange Rates service |
-| **Sheet 3** | View of all transactions (currently includes stocks, options, and interest) |
-| **Sheet 4** | Summary view — shows total taxes at **10%** |
+| **Activity Statement** | Original IBKR Activity Statement |
+| **Conversion Rates** | Official USD–MKD rates for every day in the statement period |
+| **Calculation** | Securities/options and interest transactions; Forex when enabled |
+| **Dividends** | One row per payment, including gross, withholding, net, exchange rate, and estimated tax |
+| **Summary** | Monthly realized P/L including net dividends, and estimated tax |
 
 ### Notes on tax calculation
 - Losses are deducted from profits **only within the same month** — tax can currently only be reduced on a monthly basis, not carried forward or applied against other months.
@@ -111,8 +106,10 @@ Input validation and review
 * The result shows stock rows found, excluded non-stock rows, excluded loss rows, and incomplete rows skipped.
 * Trades are displayed chronologically.
 * Stock results can be filtered by all, gains, or losses and searched by symbol/date.
-* The Excel export contains three sheets: the original IBKR Activity Statement, a complete calendar of NBRNM USD conversion rates for the statement period, and a formula-driven securities calculation workpaper. Calculation cells reference the first two sheets; FIFO holding days remain an explicit input from the existing lot-matching service.
-* The script-generated Excel export contains four sheets: `Activity Statement`, `Conversion Rates`, `Calculation`, and `Summary`. Interest transactions are included in the Calculation table with `ASSET CLASS` set to `Interest`. Negative interest is visible but never reduces securities or monthly tax; Summary tax applies positive securities and positive interest amounts separately within each month.
+* The UI and CLI use the same five-sheet workbook generator: `Activity Statement`, `Conversion Rates`, `Calculation`, `Dividends`, and `Summary`.
+* By default, the Calculation sheet includes securities/options and interest; Forex can be included from the UI or CLI. Dividend payments appear on their own `Dividends` sheet.
+* Dividend tax is calculated on gross dividends. Withholding is subtracted from gross when adding net dividends to Summary realized P/L, but is not credited against estimated local tax.
+* Negative interest is visible but never reduces securities or monthly tax. Summary tax applies positive securities and positive interest amounts separately within each month.
 
 User interface
 --------------
@@ -136,9 +133,9 @@ Requirements:
 * Node.js and npm
 * Docker Desktop
 
-Start PostgreSQL from the project root:
+Start only PostgreSQL when running the backend and frontend from source:
 
-    docker compose up -d
+    docker compose up -d postgres
 
 Start the backend in a terminal:
 
@@ -161,11 +158,11 @@ The backend API runs on:
 Generate a workbook without the web app
 ----------------------------------------
 
-Start PostgreSQL and the backend as above, then run the generator from the frontend directory:
+The launcher starts the Docker stack, waits for the API, and runs the shared CLI workbook generator:
 
-    npm run generate-workbook -- "..\U16047828_2025_2025 - Copy.csv"
+    .\tax.ps1 workbook "C:\path\to\activity.csv"
 
-The command writes a `-tax-workpaper.xlsx` file next to the CSV. Optional flags include `--output`, `--offset`, `--securities-rate`, `--dividend-rate`, `--forex-rate`, `--interest-rate`, `--include-forex`, `--offset-securities`, `--offset-forex`, and `--offset-all`. Set `TAX_API_URL` or pass `--api` to use a different backend URL.
+The command writes a `-tax-workpaper.xlsx` file next to the CSV. For advanced options, run `npm --prefix frontend run generate-workbook -- --help` after installing dependencies with `npm ci --prefix frontend`.
 
 Verification commands
 ---------------------

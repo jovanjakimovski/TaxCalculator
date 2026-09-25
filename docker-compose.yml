@@ -1,15 +1,45 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: automark
       POSTGRES_USER: automark
-      POSTGRES_PASSWORD: automark
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-automark}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U automark -d automark"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/automark
+      DATABASE_USERNAME: automark
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-automark}
+      AUTOMARK_CORS_ORIGIN: ${AUTOMARK_CORS_ORIGIN:-http://localhost:${APP_PORT:-8080}}
+      PORT: 8080
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:80"
+
+volumes:
+  postgres_data:
 

@@ -23,6 +23,13 @@ class RealizedGainsServiceTest {
     }
 
     @Test
+    void matchesWithholdingDescriptionToDividendDescription() {
+        assertEquals(
+            RealizedGainsService.normalizeDividendDescription("SYN (Ordinary Dividend)"),
+            RealizedGainsService.normalizeDividendDescription("SYN (Ordinary Dividend) - US Tax"));
+    }
+
+    @Test
     void rejectsFilesWithoutTradesSection() {
         RealizedGainsService service = new RealizedGainsService(null);
 

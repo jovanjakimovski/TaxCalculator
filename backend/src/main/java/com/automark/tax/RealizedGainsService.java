@@ -250,8 +250,8 @@ public class RealizedGainsService {
     return new DividendAmounts(current.grossUsd().add(added.grossUsd()), current.withholdingUsd().add(added.withholdingUsd()));
   }
 
-  private static String normalizeDividendDescription(String description) {
-    return description.replaceFirst(" \\(Ordinary Dividend\\)$", "").replaceFirst(" - US Tax$", "");
+  static String normalizeDividendDescription(String description) {
+    return description.replaceFirst(" - US Tax$", "").replaceFirst(" \\(Ordinary Dividend\\)$", "");
   }
 
   private static String symbol(String description) {

@@ -1,5 +1,4 @@
 import { ChangeEvent, DragEvent, useMemo, useState } from "react";
-import * as XLSX from "xlsx";
 import ForexSection from "./ForexSection";
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:8080/api";
@@ -137,6 +136,7 @@ export default function App() {
   const [result, setResult] = useState<Result>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [showSettings, setShowSettings] = useState(false);
@@ -247,214 +247,41 @@ export default function App() {
   }
 
   async function download() {
-    if (!result || !file) return;
-
-    const originalWorkbook = XLSX.read(await file.arrayBuffer(), {
-      type: "array",
-    });
-    const originalSheet = originalWorkbook.Sheets[originalWorkbook.SheetNames[0]];
-    const originalRows = XLSX.utils.sheet_to_json<(string | number)[]>(
-      originalSheet,
-      { header: 1, raw: true, defval: "" },
-    );
-    const pad = (value: number) => String(value).padStart(2, "0");
-    const dateText = (value: string | number | undefined) => {
-      if (typeof value !== "number") return String(value).slice(0, 10);
-      const parsed = XLSX.SSF.parse_date_code(value);
-      return `${parsed.y}-${pad(parsed.m)}-${pad(parsed.d)}`;
-    };
-    const timeText = (value: number) => {
-      const seconds = Math.round((value % 1) * 86400);
-      return `${pad(Math.floor(seconds / 3600))}:${pad(Math.floor((seconds % 3600) / 60))}:${pad(seconds % 60)}`;
-    };
-    const displayOriginalRows = originalRows.map((row) => {
-      const copy = [...row];
-      if (copy[1] === "Data" && copy[0] === "Trades" && typeof copy[6] === "number") {
-        copy[6] = `${dateText(copy[6])}, ${timeText(copy[6])}`;
-      }
-      if (
-        ["Dividends", "Withholding Tax", "Interest"].includes(String(copy[0])) &&
-        copy[1] === "Data"
-      ) {
-        copy[3] = dateText(copy[3]);
-      }
-      return copy;
-    });
-
-    type SourceRow = { row: (string | number)[]; sheetRow: number };
-    type CellValue = string | number | { f: string } | XLSX.CellObject;
-    const sourceRows: SourceRow[] = originalRows.map((row, index) => ({
-      row,
-      sheetRow: index + 1,
-    }));
-    const sourceFormula = (column: string, sheetRow: number) =>
-      ({ f: `='Original Activity'!${column}${sheetRow}` }) as XLSX.CellObject;
-    const sourceTextFormula = (column: string, sheetRow: number) =>
-      ({ f: `=LEFT('Original Activity'!${column}${sheetRow},10)` }) as XLSX.CellObject;
-    const numberValue = (value: string | number | undefined) =>
-      typeof value === "number" ? value : Number(value);
-    const sameNumber = (left: string | number | undefined, right: number) =>
-      Number.isFinite(numberValue(left)) && Math.abs(numberValue(left) - right) < 0.00001;
-    const usedTradeRows = new Set<number>();
-    const findTradeSource = (row: Row): SourceRow | undefined => {
-      const category = row.assetCategory === "Forex" ? "Forex" : undefined;
-      const found = sourceRows.find(({ row: source, sheetRow }) => {
-        if (usedTradeRows.has(sheetRow) || source[0] !== "Trades" || source[1] !== "Data") return false;
-        if (source[2] !== "Order" || (category && source[3] !== category)) return false;
-        return source[5] === row.symbol &&
-          dateText(source[6]) === row.date &&
-          sameNumber(source[13], row.usdResult);
+    if (!result || !file || exporting) return;
+    setError("");
+    setExporting(true);
+    try {
+      const { generateTaxWorkbook } = await import("./taxWorkbook.mjs");
+      const workbook = await generateTaxWorkbook({
+        csvText: await file.text(),
+        fileName: file.name,
+        api: `${API}/tax/realized-gains`,
+        options: {
+          rateOffsetDays: Number(offset),
+          securitiesTaxRate: Number(securitiesTaxRate),
+          dividendTaxRate: Number(dividendTaxRate),
+          forexTaxRate: Number(forexTaxRate),
+          interestTaxRate: Number(interestTaxRate),
+          offsetSecuritiesLosses,
+          offsetForexLosses,
+          offsetAcrossSections,
+          includeForex,
+          includeDividends,
+        },
       });
-      if (found) usedTradeRows.add(found.sheetRow);
-      return found;
-    };
-    const sourceRowsForIncome = (section: string, item: Dividend | Interest) =>
-      sourceRows.filter(({ row: source }) => {
-        if (source[0] !== section || source[1] !== "Data" || source[2] !== "USD") return false;
-        if (dateText(source[3]) !== item.date) return false;
-        if (section === "Interest") return sameNumber(source[5], (item as Interest).usdAmount);
-        const dividend = item as Dividend;
-        const description = String(source[4]);
-        const symbol = description.split("(")[0].trim();
-        const normalized = description.replace(/ \(Ordinary Dividend\)$/, "").replace(/ - US Tax$/, "");
-        return symbol === dividend.symbol && normalized === dividend.description;
-      });
-
-    const rateMap = new Map<string, [string, string, number, string[]]>();
-    const addRate = (date: string, rateDate: string, rate: number, category: string) => {
-      const key = `${date}|${rateDate}|${rate}`;
-      const existing = rateMap.get(key);
-      if (existing) {
-        if (!existing[3].includes(category)) existing[3].push(category);
-      } else {
-        rateMap.set(key, [date, rateDate, rate, [category]]);
-      }
-    };
-    result.rows.forEach((row) => addRate(row.date, row.rateDate, row.mkdRate, "Securities"));
-    result.forexRows.forEach((row) => addRate(row.date, row.rateDate, row.mkdRate, "Forex"));
-    result.dividends.forEach((row) => addRate(row.date, row.rateDate, row.mkdRate, "Dividends"));
-    result.interest.forEach((row) => addRate(row.date, row.rateDate, row.mkdRate, "Interest"));
-    const conversionRows: (string | number)[][] = [
-      ["Activity date", "Rate date", "MKD per USD", "Used by"],
-      ...Array.from(rateMap.values())
-        .sort((left, right) => left[0].localeCompare(right[0]))
-        .map(([date, rateDate, rate, categories]) => [
-          date,
-          rateDate,
-          rate,
-          categories.join(", "),
-        ]),
-    ];
-
-    const detailStartRow = 25;
-    const rateEndRow = conversionRows.length;
-    const rateDateFormula = (calculationRow: number) =>
-      ({ f: `=IFERROR(INDEX('Conversion Rates'!$B$2:$B$${rateEndRow},MATCH(C${calculationRow},'Conversion Rates'!$A$2:$A$${rateEndRow},0)),"")` }) as XLSX.CellObject;
-    const rateFormula = (calculationRow: number) =>
-      ({ f: `=IFERROR(INDEX('Conversion Rates'!$C$2:$C$${rateEndRow},MATCH(C${calculationRow},'Conversion Rates'!$A$2:$A$${rateEndRow},0)),0)` }) as XLSX.CellObject;
-    const detailRows: CellValue[][] = [];
-    const addTradeDetail = (row: Row) => {
-      const source = findTradeSource(row);
-      if (!source) return;
-      const calculationRow = detailStartRow + detailRows.length;
-      detailRows.push([
-        { f: `=IF('Original Activity'!D${source.sheetRow}="Forex","Forex","Securities")` },
-        sourceFormula("F", source.sheetRow),
-        sourceTextFormula("G", source.sheetRow), rateDateFormula(calculationRow),
-        sourceFormula("N", source.sheetRow), "", "", rateFormula(calculationRow),
-        { f: `=E${calculationRow}*H${calculationRow}` }, "", "", row.holdingDays ?? "",
-        row.assetCategory === "Forex" ? { f: "=$B$6" } : { f: "=$B$4" },
-        row.assetCategory === "Forex" ? { f: "=$B$10" } : { f: "=$B$8" },
-        { f: `=IF(N${calculationRow}="Yes",IF(E${calculationRow}>0,IF(L${calculationRow}>=365,E${calculationRow}*0.9,E${calculationRow}),0)*H${calculationRow},0)` },
-        { f: `=O${calculationRow}*M${calculationRow}` },
-      ]);
-    };
-    result.rows.forEach(addTradeDetail);
-    result.forexRows.forEach(addTradeDetail);
-    result.dividends.forEach((dividend) => {
-      const dividendSources = sourceRowsForIncome("Dividends", dividend);
-      const withholdingSources = sourceRowsForIncome("Withholding Tax", dividend);
-      const calculationRow = detailStartRow + detailRows.length;
-      const sumSource = (rows: SourceRow[]) =>
-        rows.length ? { f: `=SUM(${rows.map((source) => `'Original Activity'!F${source.sheetRow}`).join(",")})` } as XLSX.CellObject : 0;
-      detailRows.push([
-        "Dividend", dividend.symbol, dividend.date, rateDateFormula(calculationRow),
-        sumSource(dividendSources), sumSource(withholdingSources),
-        { f: `=E${calculationRow}-F${calculationRow}` }, rateFormula(calculationRow),
-        { f: `=E${calculationRow}*H${calculationRow}` },
-        { f: `=F${calculationRow}*H${calculationRow}` },
-        { f: `=G${calculationRow}*H${calculationRow}` }, "",
-        { f: "=$B$5" }, { f: "=$B$9" },
-        { f: `=IF(N${calculationRow}="Yes",I${calculationRow},0)` }, { f: `=O${calculationRow}*M${calculationRow}` },
-      ]);
-    });
-    result.interest.forEach((interest) => {
-      const sources = sourceRowsForIncome("Interest", interest);
-      const source = sources[0];
-      const calculationRow = detailStartRow + detailRows.length;
-      detailRows.push([
-        "Interest", "Interest income / charge", sourceTextFormula("D", source.sheetRow),
-        rateDateFormula(calculationRow), sourceFormula("F", source.sheetRow), "",
-        sourceFormula("F", source.sheetRow), rateFormula(calculationRow),
-        { f: `=E${calculationRow}*H${calculationRow}` }, "",
-        { f: `=I${calculationRow}` }, "", { f: "=$B$7" }, { f: "=$B$11" },
-        { f: `=IF(N${calculationRow}="Yes",MAX(I${calculationRow},0),0)` }, { f: `=O${calculationRow}*M${calculationRow}` },
-      ]);
-    });
-    const detailEndRow = detailStartRow + detailRows.length - 1;
-    const categoryUsd = (row: number) => ({ f: `=SUMIF($A$${detailStartRow}:$A$${detailEndRow},A${row},$E$${detailStartRow}:$E$${detailEndRow})` }) as XLSX.CellObject;
-    const categoryMkd = (row: number) => ({ f: `=SUMIF($A$${detailStartRow}:$A$${detailEndRow},A${row},$I$${detailStartRow}:$I$${detailEndRow})` }) as XLSX.CellObject;
-    const categoryTax = (row: number) => ({ f: `=SUMIF($A$${detailStartRow}:$A$${detailEndRow},A${row},$P$${detailStartRow}:$P$${detailEndRow})` }) as XLSX.CellObject;
-    const calculationRows: CellValue[][] = [
-      ["Tax calculation workpaper", ""],
-      ["Source file", result.fileName],
-      ["FX date basis", offset === "0" ? "Trade date" : "Previous working day (T-1)"],
-      ["Securities tax rate", Number(securitiesTaxRate) / 100],
-      ["Dividend tax rate", Number(dividendTaxRate) / 100],
-      ["Forex tax rate", Number(forexTaxRate) / 100],
-      ["Interest tax rate", Number(interestTaxRate) / 100],
-      ["Securities included", includeSecurities ? "Yes" : "No"],
-      ["Dividends included", includeDividends ? "Yes" : "No"],
-      ["Forex included", includeForex ? "Yes" : "No"],
-      ["Interest included", includeInterest ? "Yes" : "No"],
-      ["Securities losses offset", offsetSecuritiesLosses ? "Yes" : "No"],
-      ["Forex losses offset", offsetForexLosses ? "Yes" : "No"],
-      ["Cross-section loss offset", offsetAcrossSections ? "Yes" : "No"],
-      [], ["Summary", "USD", "MKD", "Estimated tax MKD"],
-      ["Securities", categoryUsd(17), categoryMkd(17), categoryTax(17)],
-      ["Dividends", categoryUsd(18), categoryMkd(18), categoryTax(18)],
-      ["Forex", categoryUsd(19), categoryMkd(19), categoryTax(19)],
-      ["Interest", categoryUsd(20), categoryMkd(20), categoryTax(20)],
-      ["Total taxable income", "", { f: `=SUM($O$${detailStartRow}:$O$${detailEndRow})` }, ""],
-      ["Total estimated tax", "", "", { f: `=SUM($P$${detailStartRow}:$P$${detailEndRow})` }],
-      [],
-      ["Category", "Symbol / description", "Activity date", "Rate date", "USD amount / result", "Withholding USD", "Net USD", "MKD per USD", "MKD amount / result", "Withholding MKD", "Net MKD", "FIFO holding days", "Tax rate", "Included", "Taxable MKD", "Estimated tax MKD"],
-      ...detailRows,
-    ];
-
-    const workbook = XLSX.utils.book_new();
-    const original = XLSX.utils.aoa_to_sheet(displayOriginalRows);
-    const formulaCells = (rows: CellValue[][]) =>
-      rows.map((row) =>
-        row.map((cell) =>
-          cell && typeof cell === "object" && "f" in cell && !("t" in cell)
-            ? { ...cell, t: "n", v: 0 }
-            : cell,
-        ),
+      const url = URL.createObjectURL(
+        new Blob([workbook], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
       );
-    const rates = XLSX.utils.aoa_to_sheet(formulaCells(conversionRows));
-    const calculation = XLSX.utils.aoa_to_sheet(formulaCells(calculationRows));
-    rates["!cols"] = [{ wch: 15 }, { wch: 15 }, { wch: 14 }, { wch: 20 }];
-    calculation["!cols"] = [
-      { wch: 18 }, { wch: 34 }, { wch: 15 }, { wch: 15 }, { wch: 18 },
-      { wch: 17 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 17 },
-      { wch: 14 }, { wch: 17 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 19 },
-    ];
-    XLSX.utils.book_append_sheet(workbook, original, "Original Activity");
-    XLSX.utils.book_append_sheet(workbook, rates, "Conversion Rates");
-    XLSX.utils.book_append_sheet(workbook, calculation, "Calculation");
-    const baseName = result.fileName.replace(/\.csv$/i, "");
-    XLSX.writeFile(workbook, `${baseName}-tax-workpaper.xlsx`);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${file.name.replace(/\.csv$/i, "")}-tax-workpaper.xlsx`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Workbook export failed");
+    } finally {
+      setExporting(false);
+    }
   }
 
   const visibleRows = useMemo(
@@ -823,8 +650,12 @@ export default function App() {
                     with NBRNM rates.
                   </p>
                 </div>
-                <button className="download-button" onClick={() => void download()}>
-                  <span className="download-icon">v</span> Export Excel
+                <button
+                  className="download-button"
+                  onClick={() => void download()}
+                  disabled={exporting || loading}
+                >
+                  <span className="download-icon">v</span> {exporting ? "Generating..." : "Export Excel"}
                 </button>
               </div>
               <section className="calculation-panel">

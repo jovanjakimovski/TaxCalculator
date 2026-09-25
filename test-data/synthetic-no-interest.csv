@@ -6,7 +6,3 @@ Trades,Data,Order,Stocks,USD,GAIN,2025-01-03,1,50,50,-50,0,0,0,0
 Trades,Data,Order,Stocks,USD,GAIN,2025-01-10,-1,75,75,75,0,50,25,25
 Trades,Data,Order,Stocks,USD,LOSS,2025-01-15,1,40,40,-40,0,0,0,0
 Trades,Data,Order,Stocks,USD,LOSS,2025-02-05,-1,20,20,20,0,60,-40,-40
-Dividends,Data,USD,2025-02-15,"SYN (Ordinary Dividend)",10
-Withholding Tax,Data,USD,2025-02-15,"SYN (Ordinary Dividend) - US Tax",-1
-Interest,Data,USD,2025-01-31,USD credit interest,5
-Interest,Data,USD,2025-02-28,USD debit interest,-2

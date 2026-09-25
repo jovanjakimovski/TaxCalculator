@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: automark
       POSTGRES_USER: automark
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-automark-test-only}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -23,7 +23,7 @@ services:
     environment:
       DATABASE_URL: jdbc:postgresql://postgres:5432/automark
       DATABASE_USERNAME: automark
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-automark-test-only}
       PORT: 8080
 
   frontend:
@@ -35,7 +35,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "80:80"
+      - "${APP_PORT:-80}:80"
 
 volumes:
   postgres_data:

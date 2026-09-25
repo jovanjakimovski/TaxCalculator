@@ -2,6 +2,7 @@ Statement,Header,Field Name,Field Value
 Statement,Data,Title,Activity Statement
 Statement,Data,Period,"January 1, 2025 - February 28, 2025"
 Trades,Header,DataDiscriminator,AssetCategory,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L
+Trades,Data,Order,Forex,USD,EUR.USD,2025-02-10,100,1.05,1.06,0,0,0,0,12
 Trades,Data,Order,Stocks,USD,GAIN,2025-01-03,1,50,50,-50,0,0,0,0
 Trades,Data,Order,Stocks,USD,GAIN,2025-01-10,-1,75,75,75,0,50,25,25
 Trades,Data,Order,Stocks,USD,LOSS,2025-01-15,1,40,40,-40,0,0,0,0

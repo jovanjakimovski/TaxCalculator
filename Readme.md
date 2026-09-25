@@ -1,6 +1,61 @@
 TaxCalculator
 =============
 
+
+## Local Usage — Generating a MKD Tax Report
+
+All data is stored locally (filesystem / PostgreSQL Docker volume) — nothing leaves your machine.
+
+### Prerequisites
+- [Docker](https://www.docker.com/products/docker-desktop/) (with Docker Compose)
+- [Node.js](https://nodejs.org/) + npm
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/jovanjakimovski/TaxCalculator.git
+cd TaxCalculator
+```
+
+### 2. Start the backend
+```bash
+docker compose -f docker-compose.aws.yml up -d --build
+```
+
+### 3. Generate the report
+Run from the repo root — no need to `cd` into `frontend`:
+
+```bash
+npm --prefix frontend run generate-workbook -- "file.csv" --api http://localhost/api/tax/realized-gains
+```
+
+> `file.csv` is the path to your input activity statement file.
+
+
+### Stopping the stack
+```bash
+docker compose -f docker-compose.aws.yml down
+```
+
+## Report Output
+
+The generated report is an Excel workbook with the following sheets:
+
+| Sheet | Contents |
+|---|---|
+| **Sheet 1** | Original IBKR Activity Statement |
+| **Sheet 2** | Official USD–MKD conversion rates, fetched from the NBRM Exchange Rates service |
+| **Sheet 3** | View of all transactions (currently includes stocks, options, and interest) |
+| **Sheet 4** | Summary view — shows total taxes at **10%** |
+
+### Notes on tax calculation
+- Losses are deducted from profits **only within the same month** — tax can currently only be reduced on a monthly basis, not carried forward or applied against other months.
+- **Interest losses are excluded** from deduction entirely.
+
+
+
+
+----------------
+
 TaxCalculator is a Java/Spring Boot and React application for preparing a North Macedonia tax workpaper from an Interactive Brokers (IBKR) Activity Statement CSV.
 
 The application is an estimate and review tool. It is not an electronic tax filing system and does not replace confirmation from UJP or a tax professional.

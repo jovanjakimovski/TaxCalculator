@@ -27,28 +27,6 @@ Stop the local stack while keeping its database volume:
 .\tax.ps1 down
 ```
 
-### Existing database volume
-
-If you created the PostgreSQL volume before the TaxCalculator database rename, preserve the volume and migrate its database and role once before starting the new configuration.
-
-Stop the backend, but leave PostgreSQL running:
-
-```powershell
-docker compose stop backend
-docker compose exec postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d postgres'
-```
-
-At the `psql` prompt, run:
-
-```sql
-ALTER DATABASE automark RENAME TO taxcalculator;
-ALTER ROLE automark RENAME TO taxcalculator;
-ALTER ROLE taxcalculator WITH PASSWORD 'taxcalculator';
-\q
-```
-
-Then run `.\tax.ps1 up`. Do not use `docker compose down -v`; that deletes the database volume. For an existing AWS volume, use `docker compose -f docker-compose.aws.yml` in place of `docker compose` in the commands above. Keep a custom `.env` password unchanged and omit the `ALTER ROLE ... WITH PASSWORD` line. If the previous AWS test-only fallback was used, change the role password to `taxcalculator-test-only` instead.
-
 For new AWS testing, `docker-compose.aws.yml` runs without `.env` and uses the test-only password `taxcalculator-test-only`. Replace it with a strong secret before exposing the deployment outside a trusted test environment. Set `POSTGRES_PASSWORD` in `.env` or the shell to override it.
 
 ## Report Output

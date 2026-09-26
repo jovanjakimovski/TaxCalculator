@@ -1,1 +1,0 @@
-package com.taxcalculator.connector; import org.springframework.stereotype.Component; @Component public class MockMileageConnector extends AbstractMockConnector { String id(){return "MOCK_MILEAGE";} String eventType(){return "MILEAGE_READING";} }

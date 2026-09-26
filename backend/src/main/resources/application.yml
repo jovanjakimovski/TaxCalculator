@@ -11,7 +11,4 @@ spring:
     default-property-inclusion: non_null
 server:
   port: ${PORT:8080}
-taxcalculator:
-  rdw:
-    base-url: https://opendata.rdw.nl/resource/m9d7-ebf2.json
 

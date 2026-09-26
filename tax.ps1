@@ -71,7 +71,7 @@ try {
       Start-Process $appUrl
     }
     "workbook" {
-      if (-not $CsvPath) { throw "Usage: .\tax.ps1 workbook <activity.csv> [generator options]" }
+      if (-not $CsvPath) { throw "Usage: .\tax.ps1 workbook <activity.csv> [--output <file.xlsx>]" }
       if (-not (Test-Path -LiteralPath $CsvPath -PathType Leaf)) {
         throw "CSV file not found: $CsvPath"
       }
@@ -88,7 +88,7 @@ try {
       $resolvedCsv = (Resolve-Path -LiteralPath $CsvPath).Path
       $npmArgs = @(
         "--prefix", "frontend", "run", "generate-workbook", "--",
-        $resolvedCsv, "--api", "$appUrl/api/tax/realized-gains"
+        $resolvedCsv, "--rates-api", "$appUrl/api/tax/exchange-rates"
       ) + $GeneratorOptions
       & npm @npmArgs
       if ($LASTEXITCODE -ne 0) { throw "Workbook generation failed." }

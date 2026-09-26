@@ -247,27 +247,14 @@ export default function App() {
   }
 
   async function download() {
-    if (!result || !file || exporting) return;
+    if (!file || exporting) return;
     setError("");
     setExporting(true);
     try {
       const { generateTaxWorkbook } = await import("./taxWorkbook.mjs");
       const workbook = await generateTaxWorkbook({
         csvText: await file.text(),
-        fileName: file.name,
-        api: `${API}/tax/realized-gains`,
-        options: {
-          rateOffsetDays: Number(offset),
-          securitiesTaxRate: Number(securitiesTaxRate),
-          dividendTaxRate: Number(dividendTaxRate),
-          forexTaxRate: Number(forexTaxRate),
-          interestTaxRate: Number(interestTaxRate),
-          offsetSecuritiesLosses,
-          offsetForexLosses,
-          offsetAcrossSections,
-          includeForex,
-          includeDividends,
-        },
+        exchangeRatesApi: `${API}/tax/exchange-rates`,
       });
       const url = URL.createObjectURL(
         new Blob([workbook], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
@@ -422,6 +409,16 @@ export default function App() {
           >
             {loading ? "Loading sample..." : "Try with sample CSV"}
           </button>
+          {file && (
+            <button
+              type="button"
+              className="sample-button"
+              onClick={() => void download()}
+              disabled={exporting}
+            >
+              {exporting ? "Generating workbook..." : "Export CSV workpaper"}
+            </button>
+          )}
           {file && (
             <div className="file-chip">
               <span className="file-type">CSV</span>
@@ -650,13 +647,6 @@ export default function App() {
                     with NBRNM rates.
                   </p>
                 </div>
-                <button
-                  className="download-button"
-                  onClick={() => void download()}
-                  disabled={exporting || loading}
-                >
-                  <span className="download-icon">v</span> {exporting ? "Generating..." : "Export Excel"}
-                </button>
               </div>
               <section className="calculation-panel">
                 <div className="calculation-heading">

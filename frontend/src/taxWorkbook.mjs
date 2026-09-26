@@ -43,43 +43,12 @@ function errorMessage(response, prefix) {
   return response.text().then((message) => `${prefix}: ${message || response.statusText}`);
 }
 
-export async function generateTaxWorkbook({ csvText, fileName, api, options }) {
+export async function generateTaxWorkbook({ csvText, exchangeRatesApi }) {
   const csvRows = csvText.split(/\r?\n/).filter((line) => line.length > 0).map(csvLine);
   const [periodStart, periodEnd] = statementPeriod(csvRows);
-  const config = {
-    rateOffsetDays: 1,
-    securitiesTaxRate: 10,
-    dividendTaxRate: 10,
-    forexTaxRate: 10,
-    interestTaxRate: 10,
-    offsetSecuritiesLosses: false,
-    offsetForexLosses: false,
-    offsetAcrossSections: false,
-    includeForex: false,
-    includeDividends: true,
-    ...options,
-  };
-  const body = new FormData();
-  body.append("file", new Blob([csvText], { type: "text/csv" }), fileName);
-  body.append("rateOffsetDays", String(config.rateOffsetDays));
-  body.append("securitiesTaxRate", String(config.securitiesTaxRate));
-  body.append("dividendTaxRate", String(config.dividendTaxRate));
-  body.append("forexTaxRate", String(config.forexTaxRate));
-  body.append("interestTaxRate", String(config.interestTaxRate));
-  body.append("offsetSecuritiesLosses", String(config.offsetSecuritiesLosses));
-  body.append("offsetForexLosses", String(config.offsetForexLosses));
-  body.append("offsetAcrossSections", String(config.offsetAcrossSections));
-  body.append("includeSecurities", "true");
-  body.append("includeDividends", String(config.includeDividends));
-  body.append("includeForex", String(config.includeForex));
-  body.append("includeInterest", "true");
-
-  const resultResponse = await fetch(api, { method: "POST", body });
-  if (!resultResponse.ok) throw new Error(await errorMessage(resultResponse, "Tax API returned an error"));
-  const result = await resultResponse.json();
-
-  const ratesApi = api.replace(/\/realized-gains$/, "");
-  const ratesUrl = `${ratesApi}/exchange-rates?${new URLSearchParams({
+  if (!exchangeRatesApi) throw new Error("An exchange-rate API URL is required.");
+  const config = { rateOffsetDays: 1, securitiesTaxRate: 10, dividendTaxRate: 10, interestTaxRate: 10 };
+  const ratesUrl = `${exchangeRatesApi}?${new URLSearchParams({
     startDate: periodStart,
     endDate: periodEnd,
     rateOffsetDays: String(config.rateOffsetDays),
@@ -90,122 +59,139 @@ export async function generateTaxWorkbook({ csvText, fileName, api, options }) {
 
   const originalRows = csvRows;
   const dateText = (value) => String(value ?? "").slice(0, 10);
-  const sourceRows = originalRows.map((row, index) => ({ row, sheetRow: index + 1 }));
-  const sourceFormula = (column, sheetRow) => ({ f: `='Activity Statement'!${column}${sheetRow}` });
-  const sourceTextFormula = (column, sheetRow) => ({ f: `=LEFT('Activity Statement'!${column}${sheetRow},10)` });
-  const sameNumber = (value, expected) => Number.isFinite(Number(String(value ?? "").replaceAll(",", ""))) && Math.abs(Number(String(value).replaceAll(",", "")) - expected) < 0.00001;
-  const usedTradeRows = new Set();
-
-  function findTradeSource(item) {
-    const profitColumn = item.assetCategory === "Forex" ? 14 : 13;
-    const found = sourceRows.find(({ row, sheetRow }) => {
-      if (usedTradeRows.has(sheetRow) || row[0] !== "Trades" || row[1] !== "Data" || row[2] !== "Order") return false;
-      if (item.assetCategory === "Forex" ? row[3] !== "Forex" : row[3] === "Forex") return false;
-      return row[5] === item.symbol && dateText(row[6]) === item.date && sameNumber(row[profitColumn], item.usdResult);
-    });
-    if (found) usedTradeRows.add(found.sheetRow);
-    return found;
-  }
-
-  function dividendSources(section, item) {
-    return sourceRows.filter(({ row }) => {
-      if (row[0] !== section || row[1] !== "Data" || row[2] !== "USD" || dateText(row[3]) !== item.date) return false;
-      const description = String(row[4]);
-      const symbol = description.split("(")[0].trim();
-      const normalized = description.replace(/ - US Tax$/, "").replace(/ \(Ordinary Dividend\)$/, "");
-      return symbol === item.symbol && normalized === item.description;
-    });
-  }
-
-  function sumSourceAmounts(rows, fallback, useAbsolute = false) {
-    if (rows.length === 0) return fallback;
-    const cells = rows.map(({ sheetRow }) => {
-      const reference = `'Activity Statement'!F${sheetRow}`;
-      return useAbsolute ? `ABS(VALUE(${reference}))` : `VALUE(${reference})`;
-    });
-    return { f: `=${cells.join("+")}` };
-  }
-
-  const detailStartRow = 2;
+  const numericCell = (value) => {
+    if (value == null || String(value).trim() === "") return 0;
+    const parsed = Number(String(value).replaceAll(",", ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const formula = (f, v, t = "n") => ({ f, v, t });
+  const rateByDate = new Map(fullRates.map((row) => [row.requestedDate, row]));
+  const formulas = {
+    rate: (row) => `=IFERROR(VLOOKUP(A${row},'Conversion Rates'!$A:$B,2,FALSE),0)`,
+  };
+  const originalSheetRow = (index) => index + 1;
+  const sourceRows = originalRows.map((row, index) => ({ row, sheetRow: originalSheetRow(index) }));
+  const rateFor = (date) => {
+    const rate = rateByDate.get(date);
+    if (!rate) throw new Error(`Exchange rate missing for ${date}.`);
+    return rate;
+  };
   const conversionRows = [
-    ["DATE", "RATE"],
+    ["DATE", "MKD PER USD"],
     ...fullRates.map((row) => [row.requestedDate, row.mkdPerUsd]),
   ];
-  const rateEndRow = conversionRows.length;
-  const detailRows = [];
+  const securities = [];
+  const interests = [];
+  const dividendsByKey = new Map();
+  const dividendDescription = (description) => String(description ?? "").replace(/ - US Tax$/, "").replace(/ \(Ordinary Dividend\)$/, "");
+  const dividendSymbol = (description) => String(description ?? "").split("(")[0].trim();
 
-  function addTradeDetail(item) {
-    const source = findTradeSource(item);
-    if (!source) return;
-    const row = detailStartRow + detailRows.length;
-    const profitColumn = item.assetCategory === "Forex" ? "O" : "N";
-    detailRows.push([
-      sourceTextFormula("G", source.sheetRow),
-      { f: `=TEXT(DATEVALUE(A${row})-${config.rateOffsetDays},"yyyy-mm-dd")` },
-      sourceFormula("F", source.sheetRow),
-      sourceFormula("D", source.sheetRow),
-      { f: `=IF(D${row}="Equity and Index Options",100,1)` },
-      { f: `=ABS('Activity Statement'!H${source.sheetRow})` },
-      { f: `=ABS('Activity Statement'!M${source.sheetRow})` },
-      sourceFormula("I", source.sheetRow),
-      sourceFormula("K", source.sheetRow),
-      sourceFormula(profitColumn, source.sheetRow),
+  sourceRows.forEach(({ row, sheetRow }) => {
+    if (row[1] !== "Data") return;
+    if (row[0] === "Trades" && row[2] === "Order" && ["Stocks", "Equity and Index Options"].includes(row[3])) {
+      const quantity = numericCell(row[7]);
+      if (quantity > 0) return;
+      const date = dateText(row[6]);
+      const plColumn = row[3] === "Forex" ? 14 : 13;
+      const usdResult = numericCell(row[plColumn]);
+      const rate = rateFor(date);
+      securities.push({ row, sheetRow, date, usdResult, rate, mkdResult: usdResult * rate.mkdPerUsd });
+      return;
+    }
+    if (row[0] === "Interest" && row[2] === "USD") {
+      const date = dateText(row[3]);
+      const usdAmount = numericCell(row[5]);
+      const rate = rateFor(date);
+      interests.push({ row, sheetRow, date, usdAmount, rate, mkdAmount: usdAmount * rate.mkdPerUsd });
+      return;
+    }
+    if ((row[0] === "Dividends" || row[0] === "Withholding Tax") && row[2] === "USD") {
+      const date = dateText(row[3]);
+      const description = String(row[4] ?? "");
+      const key = `${date}|${dividendSymbol(description)}|${dividendDescription(description)}`;
+      let entry = dividendsByKey.get(key);
+      if (!entry) {
+        const rate = rateFor(date);
+        entry = { date, symbol: dividendSymbol(description), description: dividendDescription(description), rate, gross: [], withholding: [] };
+        dividendsByKey.set(key, entry);
+      }
+      entry[row[0] === "Dividends" ? "gross" : "withholding"].push({ sheetRow, amount: numericCell(row[5]) });
+    }
+  });
+
+  const calculationRows = [["DATE", "RATE DATE", "SYMBOL", "ASSET CLASS", "CONTRACT MULTIPLIER", "QUANTITY", "COST BASIS", "SALE PRICE / SHARE", "SALE PRICE TOTAL", "REALIZED P/L", "CURRENCY", "EXCHANGE RATE", "REALIZED P/L (MKD)"]];
+  securities.forEach((item) => {
+    const row = calculationRows.length + 1;
+    const ref = item.sheetRow;
+    const column = (letter) => `'Activity Statement'!${letter}${ref}`;
+    calculationRows.push([
+      formula(`=LEFT(${column("G")},10)`, item.date, "str"),
+      item.rate.effectiveDate,
+      formula(`=${column("F")}`, item.row[5], "str"),
+      formula(`=${column("D")}`, item.row[3], "str"),
+      formula(`=IF(D${row}="Equity and Index Options",100,1)`, item.row[3] === "Equity and Index Options" ? 100 : 1),
+      formula(`=ABS(VALUE(${column("H")}))`, Math.abs(numericCell(item.row[7]))),
+      formula(`=ABS(VALUE(${column("M")}))`, Math.abs(numericCell(item.row[12]))),
+      formula(`=VALUE(${column("I")})`, numericCell(item.row[8])),
+      formula(`=VALUE(${column("K")})`, numericCell(item.row[10])),
+      formula(`=VALUE(${column(item.row[3] === "Forex" ? "O" : "N")})`, item.usdResult),
+      formula(`=${column("E")}`, item.row[4], "str"),
+      formula(formulas.rate(row), item.rate.mkdPerUsd),
+      formula(`=J${row}*L${row}`, item.mkdResult),
+    ]);
+  });
+  interests.forEach((item) => {
+    const row = calculationRows.length + 1;
+    const ref = item.sheetRow;
+    const column = (letter) => `'Activity Statement'!${letter}${ref}`;
+    calculationRows.push([
+      formula(`=LEFT(${column("D")},10)`, item.date, "str"),
+      item.rate.effectiveDate,
+      "",
+      "Interest",
+      1,
+      "",
+      "",
+      "",
+      "",
+      formula(`=VALUE(${column("F")})`, item.usdAmount),
       "USD",
-      { f: `=IFERROR(INDEX('Conversion Rates'!$B$2:$B$${rateEndRow},MATCH(B${row},'Conversion Rates'!$A$2:$A$${rateEndRow},0)),0)` },
-      { f: `=J${row}*L${row}` },
+      formula(formulas.rate(row), item.rate.mkdPerUsd),
+      formula(`=J${row}*L${row}`, item.mkdAmount),
+    ]);
+  });
+
+  const formulaSum = (entries, absolute = false) => {
+    if (entries.length === 0) return formula("=0", 0);
+    const refs = entries.map(({ sheetRow }) => `${absolute ? "ABS(" : ""}VALUE('Activity Statement'!F${sheetRow})${absolute ? ")" : ""}`);
+    return formula(`=SUM(${refs.join(",")})`, entries.reduce((sum, entry) => sum + (absolute ? Math.abs(entry.amount) : entry.amount), 0));
+  };
+  const dividendRows = [];
+  for (const item of dividendsByKey.values()) {
+    const row = dividendRows.length + 2;
+    const descriptionSourceRow = item.gross[0]?.sheetRow ?? item.withholding[0].sheetRow;
+    const descriptionSource = `'Activity Statement'!E${descriptionSourceRow}`;
+    const gross = item.gross.reduce((sum, entry) => sum + entry.amount, 0);
+    const withholding = item.withholding.reduce((sum, entry) => sum + Math.abs(entry.amount), 0);
+    const grossMkd = gross * item.rate.mkdPerUsd;
+    const grossFormula = formulaSum(item.gross);
+    const withholdingFormula = formulaSum(item.withholding, true);
+    dividendRows.push([
+      formula(`=LEFT('Activity Statement'!D${item.gross[0]?.sheetRow ?? item.withholding[0].sheetRow},10)`, item.date, "str"),
+      formula(`=LEFT(${descriptionSource},FIND(" (",${descriptionSource}&" ( ")-1)`, item.symbol, "str"),
+      formula(`=SUBSTITUTE(LEFT(${descriptionSource},FIND(" - US Tax",${descriptionSource}&" - US Tax")-1)," (Ordinary Dividend)","")`, item.description, "str"),
+      item.rate.effectiveDate,
+      grossFormula,
+      withholdingFormula,
+      formula(`=IFERROR(VLOOKUP(A${row},'Conversion Rates'!$A:$B,2,FALSE),0)`, item.rate.mkdPerUsd),
+      formula(`=ROUND(E${row}*G${row},2)`, Math.round(grossMkd * 100) / 100),
+      formula("=10%", config.dividendTaxRate / 100),
+      "Yes",
+      formula(`=H${row}`, Math.round(grossMkd * 100) / 100),
+      formula(`=ROUND(K${row}*I${row},2)`, Math.round(grossMkd * config.dividendTaxRate) / 100),
     ]);
   }
 
-  result.rows.forEach(addTradeDetail);
-  if (config.includeForex) result.forexRows.forEach(addTradeDetail);
-  const interestRows = [];
-  result.interest.forEach((item) => {
-    const source = sourceRows.find(({ row }) => row[0] === "Interest" && row[1] === "Data" && row[2] === "USD" && dateText(row[3]) === item.date && sameNumber(row[5], item.usdAmount));
-    if (!source) return;
-    const row = detailStartRow + detailRows.length + interestRows.length;
-    interestRows.push([
-      sourceTextFormula("D", source.sheetRow),
-      { f: `=TEXT(DATEVALUE(A${row})-${config.rateOffsetDays},"yyyy-mm-dd")` },
-      "",
-      "Interest",
-      "1",
-      "",
-      "",
-      "",
-      "",
-      sourceFormula("F", source.sheetRow),
-      "USD",
-      { f: `=IFERROR(INDEX('Conversion Rates'!$B$2:$B$${rateEndRow},MATCH(B${row},'Conversion Rates'!$A$2:$A$${rateEndRow},0)),0)` },
-      { f: `=J${row}*L${row}` },
-    ]);
-  });
-
-  const dividendRows = [];
-  result.dividends.forEach((item) => {
-    const grossSources = dividendSources("Dividends", item);
-    const withholdingSources = dividendSources("Withholding Tax", item);
-    const row = detailStartRow + dividendRows.length;
-    dividendRows.push([
-      item.date,
-      item.symbol,
-      item.description,
-      item.rateDate,
-      sumSourceAmounts(grossSources, item.grossUsd),
-      sumSourceAmounts(withholdingSources, item.withholdingUsd, true),
-      { f: `=IFERROR(INDEX('Conversion Rates'!$B$2:$B$${rateEndRow},MATCH(A${row},'Conversion Rates'!$A$2:$A$${rateEndRow},0)),0)` },
-      { f: `=ROUND(E${row}*G${row},2)` },
-      Number(config.dividendTaxRate) / 100,
-      config.includeDividends ? "Yes" : "No",
-      { f: `=IF(J${row}="Yes",H${row},0)` },
-      { f: `=ROUND(K${row}*I${row},2)` },
-    ]);
-  });
-
-  const calculationRows = [
-    ["DATE", "ADJUSTED DATE", "SYMBOL", "ASSET CLASS", "CONTRACT MULTIPLIER", "QUANTITY", "COST BASIS", "SALE PRICE / SHARE", "SALE PRICE TOTAL", "REALIZED P/L", "CURRENCY", "EXCHANGE RATE", "REALIZED P/L (MKD)"],
-    ...detailRows,
-    ...interestRows,
-  ];
   const summaryMonths = [];
   for (let month = periodStart.slice(0, 7); month <= periodEnd.slice(0, 7);) {
     summaryMonths.push(month);
@@ -215,36 +201,39 @@ export async function generateTaxWorkbook({ csvText, fileName, api, options }) {
   }
   const calculationEndRow = calculationRows.length;
   const dividendEndRow = dividendRows.length + 1;
+  const calculationFormulaEndRow = Math.max(calculationEndRow, 2);
+  const dividendFormulaEndRow = Math.max(dividendEndRow, 2);
+  const monthlySummaryRows = summaryMonths.map((month, index) => {
+    const row = index + 3;
+    const monthCalculationRows = calculationRows.slice(1).filter((item) => String(item[0].v).slice(0, 7) === month);
+    const monthDividendRows = dividendRows.filter((item) => String(item[0].v).slice(0, 7) === month);
+    const realizedMkd = monthCalculationRows.reduce((sum, item) => sum + item[12].v, 0);
+    const dividendGrossMkd = monthDividendRows.reduce((sum, item) => sum + item[7].v, 0);
+    const tradeTaxBase = monthCalculationRows.filter((item) => item[3] !== "Interest").reduce((sum, item) => sum + item[12].v, 0);
+    const interestTaxBase = monthCalculationRows.filter((item) => item[3] === "Interest").reduce((sum, item) => sum + item[12].v, 0);
+    const dividendTax = monthDividendRows.reduce((sum, item) => sum + item[11].v, 0);
+    const tax = Math.max(tradeTaxBase, 0) * config.securitiesTaxRate / 100 + Math.max(interestTaxBase, 0) * config.interestTaxRate / 100 + dividendTax;
+    const totalFormula = `=SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationFormulaEndRow},7)=A${row})*Calculation!$M$2:$M$${calculationFormulaEndRow})+SUMPRODUCT((LEFT(Dividends!$A$2:$A$${dividendFormulaEndRow},7)=A${row})*Dividends!$H$2:$H$${dividendFormulaEndRow})`;
+    const taxFormula = `=MAX(SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationFormulaEndRow},7)=A${row})*(Calculation!$D$2:$D$${calculationFormulaEndRow}<>"Interest")*Calculation!$M$2:$M$${calculationFormulaEndRow}),0)*10%+MAX(SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationFormulaEndRow},7)=A${row})*(Calculation!$D$2:$D$${calculationFormulaEndRow}="Interest")*Calculation!$M$2:$M$${calculationFormulaEndRow}),0)*10%+SUMPRODUCT((LEFT(Dividends!$A$2:$A$${dividendFormulaEndRow},7)=A${row})*Dividends!$L$2:$L$${dividendFormulaEndRow})`;
+    return [month, formula(totalFormula, realizedMkd + dividendGrossMkd), formula(taxFormula, tax)];
+  });
+  const totalRow = monthlySummaryRows.length + 3;
   const summaryRows = [
     ["SUMMARY", "", ""],
     ["MONTH", "TOTAL REALIZED P/L (MKD)", "TAX"],
-    ...summaryMonths.map((month, index) => {
-      const row = index + 3;
-      const monthlyDividendSum = (column) => dividendRows.length
-        ? `SUMPRODUCT((LEFT(Dividends!$A$2:$A$${dividendEndRow},7)=A${row})*Dividends!$${column}$2:$${column}$${dividendEndRow})`
-        : "0";
-      return [
-        month,
-        { f: `=SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationEndRow},7)=A${row})*Calculation!$M$2:$M$${calculationEndRow})+${monthlyDividendSum("H")}` },
-        { f: `=MAX(SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationEndRow},7)=A${row})*(Calculation!$D$2:$D$${calculationEndRow}<>"Interest")*Calculation!$M$2:$M$${calculationEndRow}),0)*${Number(config.securitiesTaxRate) / 100}+MAX(SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationEndRow},7)=A${row})*(Calculation!$D$2:$D$${calculationEndRow}="Interest")*Calculation!$M$2:$M$${calculationEndRow}),0)*${Number(config.interestTaxRate) / 100}+${monthlyDividendSum("L")}` },
-      ];
-    }),
-    ["TOTAL", { f: `=SUM(B3:B${summaryMonths.length + 2})` }, { f: `=SUM(C3:C${summaryMonths.length + 2})` }],
+    ...monthlySummaryRows,
+    ["TOTAL", formula(`=SUM(B3:B${totalRow - 1})`, monthlySummaryRows.reduce((sum, row) => sum + row[1].v, 0)), formula(`=SUM(C3:C${totalRow - 1})`, monthlySummaryRows.reduce((sum, row) => sum + row[2].v, 0))],
   ];
 
   const workbook = XLSX.utils.book_new();
-  workbook.Workbook = { CalcPr: { calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true } };
   const original = XLSX.utils.aoa_to_sheet(originalRows);
-  const formulaCells = (rows) => rows.map((row) => row.map((cell) =>
-    cell && typeof cell === "object" && cell.f && !cell.t ? { ...cell, t: "n", v: 0 } : cell,
-  ));
-  const rates = XLSX.utils.aoa_to_sheet(formulaCells(conversionRows));
-  const calculation = XLSX.utils.aoa_to_sheet(formulaCells(calculationRows));
-  const dividends = XLSX.utils.aoa_to_sheet(formulaCells([
+  const rates = XLSX.utils.aoa_to_sheet(conversionRows);
+  const calculation = XLSX.utils.aoa_to_sheet(calculationRows);
+  const dividends = XLSX.utils.aoa_to_sheet([
     ["DATE", "SYMBOL", "DESCRIPTION", "RATE DATE", "GROSS USD", "WITHHOLDING USD", "MKD PER USD", "GROSS MKD", "TAX RATE", "INCLUDED", "TAXABLE MKD", "ESTIMATED TAX MKD"],
     ...dividendRows,
-  ]));
-  const summary = XLSX.utils.aoa_to_sheet(formulaCells(summaryRows));
+  ]);
+  const summary = XLSX.utils.aoa_to_sheet(summaryRows);
   const headerStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F4E78" } }, alignment: { horizontal: "center", vertical: "center" } };
   const titleStyle = { font: { bold: true, color: { rgb: "FFFFFF" }, sz: 14 }, fill: { fgColor: { rgb: "17365D" } } };
   const styleHeader = (sheet, row, lastColumn) => {
@@ -259,7 +248,7 @@ export async function generateTaxWorkbook({ csvText, fileName, api, options }) {
       if (sheet[cell]) sheet[cell].s = titleStyle;
     }
   };
-  rates["!cols"] = [{ wch: 16 }, { wch: 14 }];
+  rates["!cols"] = [{ wch: 16 }, { wch: 18 }];
   calculation["!cols"] = [
     { wch: 14 }, { wch: 20 }, { wch: 14 }, { wch: 26 }, { wch: 20 }, { wch: 12 }, { wch: 16 }, { wch: 22 }, { wch: 20 }, { wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 22 },
   ];

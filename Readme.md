@@ -1,10 +1,9 @@
 TaxCalculator
 =============
 
-
 ## Quick Start (Local)
 
-Requires Docker Desktop. Node.js and npm are needed for workbook generation; the launcher installs project dependencies if missing. No database password or `.env` file is needed for local use.
+Requires Docker Desktop. Node.js and npm are needed for workbook generation; the launcher installs project dependencies if missing. No `.env` file or user-configured database password is needed for local use.
 
 Open the app:
 
@@ -12,15 +11,15 @@ Open the app:
 .\tax.ps1 ui
 ```
 
-Generate a workbook directly from an IBKR CSV:
+Generate a workbook from an IBKR CSV:
 
 ```powershell
 .\tax.ps1 workbook "C:\path\to\activity.csv"
 ```
 
-The workbook is saved beside the CSV. The local database is bound to localhost and uses a local-only default password.
+The workbook is saved beside the CSV. The local database is bound to localhost and uses a test-only default password.
 
-For test data that contains no personal account information, use the synthetic statements in `test-data/`. They cover gains/losses and interest, optional Forex, and a statement without interest. Upload any of them in the UI or pass one to the workbook command.
+PII-free test statements are available in `test-data/`. They cover gains/losses and interest, optional Forex, and a statement without interest.
 
 Stop the local stack while keeping its database volume:
 
@@ -28,173 +27,110 @@ Stop the local stack while keeping its database volume:
 .\tax.ps1 down
 ```
 
-For AWS testing, `docker-compose.aws.yml` also runs without `.env` and uses the test-only password `automark-test-only`. Replace it with a strong secret before exposing any deployment outside a trusted test environment. To override it, set `POSTGRES_PASSWORD` in `.env` or the shell, then run `docker compose -f docker-compose.aws.yml up -d --build`.
+### Existing database volume
+
+If you created the PostgreSQL volume before the TaxCalculator database rename, preserve the volume and migrate its database and role once before starting the new configuration.
+
+Stop the backend, but leave PostgreSQL running:
+
+```powershell
+docker compose stop backend
+docker compose exec postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d postgres'
+```
+
+At the `psql` prompt, run:
+
+```sql
+ALTER DATABASE automark RENAME TO taxcalculator;
+ALTER ROLE automark RENAME TO taxcalculator;
+ALTER ROLE taxcalculator WITH PASSWORD 'taxcalculator';
+\q
+```
+
+Then run `.\tax.ps1 up`. Do not use `docker compose down -v`; that deletes the database volume. For an existing AWS volume, use `docker compose -f docker-compose.aws.yml` in place of `docker compose` in the commands above. Keep a custom `.env` password unchanged and omit the `ALTER ROLE ... WITH PASSWORD` line. If the previous AWS test-only fallback was used, change the role password to `taxcalculator-test-only` instead.
+
+For new AWS testing, `docker-compose.aws.yml` runs without `.env` and uses the test-only password `taxcalculator-test-only`. Replace it with a strong secret before exposing the deployment outside a trusted test environment. Set `POSTGRES_PASSWORD` in `.env` or the shell to override it.
 
 ## Report Output
 
-The generated report is an Excel workbook with the following sheets:
+The UI and CLI produce the same five-sheet Excel workbook:
 
 | Sheet | Contents |
 |---|---|
 | **Activity Statement** | Original IBKR Activity Statement |
-| **Conversion Rates** | Official USD–MKD rates for every day in the statement period |
+| **Conversion Rates** | Official USD-MKD rates for every day in the statement period |
 | **Calculation** | Securities/options and interest transactions; Forex when enabled |
-| **Dividends** | One row per payment, including gross, withholding, net, exchange rate, and estimated tax |
-| **Summary** | Monthly realized P/L including net dividends, and estimated tax |
+| **Dividends** | One row per payment with gross, withholding evidence, exchange rate, taxable amount, and estimated tax |
+| **Summary** | Monthly realized P/L including gross dividends, and estimated tax |
 
-### Notes on tax calculation
-- Losses are deducted from profits **only within the same month** — tax can currently only be reduced on a monthly basis, not carried forward or applied against other months.
-- **Interest losses are excluded** from deduction entirely.
+## Tax Calculation Notes
 
+- Positive gains use the full gain as the taxable base regardless of holding period.
+- Dividend tax and Summary P/L use gross dividends only. Foreign withholding appears as evidence on the Dividends sheet but is excluded from the taxable amount and Summary.
+- Securities/options losses offset gains only within the same month. Losses are not carried forward or applied against dividends or interest.
+- Positive interest is taxed separately. Negative interest charges are shown but do not reduce other categories.
+- The estimates and loss-treatment assumptions should be confirmed against current UJP rules. This tool is not a filing system or legal/tax advice.
+- IBKR realized P/L and basis values are used; the app does not independently rebuild FIFO cost basis.
 
-
-
-----------------
-
-TaxCalculator is a Java/Spring Boot and React application for preparing a North Macedonia tax workpaper from an Interactive Brokers (IBKR) Activity Statement CSV.
-
-The application is an estimate and review tool. It is not an electronic tax filing system and does not replace confirmation from UJP or a tax professional.
-
-What it supports
-----------------
-
-The calculator reads these IBKR sections:
-
-* Trades: realized stock transactions and IBKR-provided Realized P/L values.
-* Dividends: gross dividend payments, including payment-in-lieu entries.
-* Withholding Tax: foreign withholding related to dividend payments.
-* Interest: positive interest income and negative margin/debit interest charges.
-
-The result is organized into collapsible categories:
-
-* Stocks: USD result, NBRNM rate, MKD result, estimated tax per row, and totals.
-* Dividends: gross paid, withholding, net received, estimated tax per payment, and totals.
-* Interest income / charges: signed USD and MKD amounts, positive-interest tax, and totals.
-
-Tax calculation behavior
-------------------------
-
-* The configured tax rate is currently 10% for stocks, dividends, and positive interest income.
-* Negative interest charges receive zero tax and do not offset another category.
-* The headline tax total reconciles with the row-level tax values shown in the tables.
-* The existing stock tax-base and loss-treatment assumptions are intentionally unchanged and should be confirmed against the current applicable UJP rules.
-* Foreign withholding is displayed separately. It is not automatically treated as a foreign-tax credit.
-* IBKR's Realized P/L and basis values are used; the application does not independently recalculate FIFO cost basis.
-
-Exchange rates
+Exchange Rates
 --------------
 
-The application uses official NBRNM USD exchange rates.
+The application uses official NBRNM USD exchange rates. Supported settings are trade date (T) and previous day (T-1). Rates are cached in PostgreSQL, including weekend and holiday fallback results.
 
-Supported settings:
-
-* Trade date (T)
-* Previous day (T-1)
-
-Rates are shared between users through PostgreSQL. The backend:
-
-* Reuses cached dates instead of requesting NBRNM again.
-* Stores weekend and holiday fallback results.
-* Fetches only dates that are not already cached.
-* Uses a PostgreSQL upsert so simultaneous users can safely populate the same cache.
-
-Input validation and review
+Running locally from source
 ---------------------------
 
-* Only CSV files are accepted by the UI.
-* The backend rejects files without an IBKR Trades section.
-* The result shows stock rows found, excluded non-stock rows, excluded loss rows, and incomplete rows skipped.
-* Trades are displayed chronologically.
-* Stock results can be filtered by all, gains, or losses and searched by symbol/date.
-* The UI and CLI use the same five-sheet workbook generator: `Activity Statement`, `Conversion Rates`, `Calculation`, `Dividends`, and `Summary`.
-* By default, the Calculation sheet includes securities/options and interest; Forex can be included from the UI or CLI. Dividend payments appear on their own `Dividends` sheet.
-* Dividend tax is calculated on gross dividends. Withholding is subtracted from gross when adding net dividends to Summary realized P/L, but is not credited against estimated local tax.
-* Negative interest is visible but never reduces securities or monthly tax. Summary tax applies positive securities and positive interest amounts separately within each month.
+Requirements: Java 21, Maven Wrapper, Node.js/npm, and Docker Desktop.
 
-User interface
---------------
+To run the frontend and backend from source, start PostgreSQL only:
 
-The React interface includes:
-
-* Drag-and-drop IBKR CSV upload.
-* An in-app guide explaining how to download an Activity Statement.
-* Separate disabled tax fields for Stocks, Dividends, and Other income, currently fixed at 10%.
-* Unified calculation results with collapsible income categories.
-* Responsive layout for desktop and mobile screens.
-* Clear per-row tax values and section totals.
-
-Running locally
----------------
-
-Requirements:
-
-* Java 21
-* Maven Wrapper
-* Node.js and npm
-* Docker Desktop
-
-Start only PostgreSQL when running the backend and frontend from source:
-
-    docker compose up -d postgres
+```powershell
+docker compose up -d postgres
+```
 
 Start the backend in a terminal:
 
-    cd backend
-    .\mvnw.cmd spring-boot:run
+```powershell
+cd backend
+.\mvnw.cmd spring-boot:run
+```
 
 Start the frontend in another terminal:
 
-    cd frontend
-    npm run dev -- --host localhost
+```powershell
+cd frontend
+npm run dev -- --host localhost
+```
 
-Open:
+Open `http://localhost:5173/`. The API runs at `http://localhost:8080`.
 
-    http://localhost:5173/
+CLI workbook generation
+-----------------------
 
-The backend API runs on:
+The root launcher starts the local stack, waits for the API, and runs the shared generator:
 
-    http://localhost:8080
+```powershell
+.\tax.ps1 workbook "C:\path\to\activity.csv"
+```
 
-Generate a workbook without the web app
-----------------------------------------
-
-The launcher starts the Docker stack, waits for the API, and runs the shared CLI workbook generator:
-
-    .\tax.ps1 workbook "C:\path\to\activity.csv"
-
-The command writes a `-tax-workpaper.xlsx` file next to the CSV. For advanced options, run `npm --prefix frontend run generate-workbook -- --help` after installing dependencies with `npm ci --prefix frontend`.
-
-Verification commands
----------------------
-
-Backend tests:
-
-    cd backend
-    .\mvnw.cmd clean test
-
-Frontend production build:
-
-    cd frontend
-    npm run build
+The workbook is written beside the CSV. For advanced options, install dependencies with `npm ci --prefix frontend`, then run `npm --prefix frontend run generate-workbook -- --help`.
 
 Database
 --------
 
-PostgreSQL is configured through Docker Compose with these local defaults:
+New local Compose volumes use:
 
-* Database: automark
-* User: automark
-* Password: automark
-* Port: 5432
+- Database: `taxcalculator`
+- User: `taxcalculator`
+- Local-only test password: `taxcalculator`
+- Port: 5432 bound to localhost
 
-Flyway applies the schema migrations, including the shared NBRNM exchange-rate cache.
+Flyway applies the schema migrations, including the NBRNM exchange-rate cache.
 
 Known limitations
 -----------------
 
-* Tax treatment for positive interest income is currently configured as 10% but should be confirmed legally.
-* Negative interest is displayed and included in the calculation view, but does not reduce tax.
-* Foreign withholding is not automatically credited against the local estimate.
-* Options, FX activity, stock awards, deposits, and unrealized gains are not included in the tax estimate.
-* The application relies on IBKR's realized P/L values rather than independently rebuilding every lot match.
-* NBRNM availability and response format remain external dependencies.
+- The tax treatment for positive interest income and the category/loss treatment assumptions should be confirmed legally.
+- Foreign withholding is not used as a tax credit in this estimate.
+- Options, Forex, stock awards, deposits, and unrealized gains have limited or no tax treatment in the estimate; confirm their local classification.
+- NBRNM availability and response format are external dependencies.

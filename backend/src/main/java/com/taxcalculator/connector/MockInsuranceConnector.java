@@ -1,0 +1,1 @@
+package com.taxcalculator.connector; import org.springframework.stereotype.Component; @Component public class MockInsuranceConnector extends AbstractMockConnector { String id(){return "MOCK_INSURANCE";} String eventType(){return "INSURANCE_RECORD";} }

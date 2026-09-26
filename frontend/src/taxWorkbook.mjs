@@ -117,7 +117,7 @@ export async function generateTaxWorkbook({ csvText, fileName, api, options }) {
     });
   }
 
-  function sumSourceAmounts(rows, useAbsolute, fallback) {
+  function sumSourceAmounts(rows, fallback, useAbsolute = false) {
     if (rows.length === 0) return fallback;
     const cells = rows.map(({ sheetRow }) => {
       const reference = `'Activity Statement'!F${sheetRow}`;
@@ -190,17 +190,14 @@ export async function generateTaxWorkbook({ csvText, fileName, api, options }) {
       item.symbol,
       item.description,
       item.rateDate,
-      sumSourceAmounts(grossSources, false, item.grossUsd),
-      sumSourceAmounts(withholdingSources, true, item.withholdingUsd),
-      { f: `=E${row}-F${row}` },
+      sumSourceAmounts(grossSources, item.grossUsd),
+      sumSourceAmounts(withholdingSources, item.withholdingUsd, true),
       { f: `=IFERROR(INDEX('Conversion Rates'!$B$2:$B$${rateEndRow},MATCH(A${row},'Conversion Rates'!$A$2:$A$${rateEndRow},0)),0)` },
-      { f: `=ROUND(E${row}*H${row},2)` },
-      { f: `=ROUND(F${row}*H${row},2)` },
-      { f: `=I${row}-J${row}` },
+      { f: `=ROUND(E${row}*G${row},2)` },
       Number(config.dividendTaxRate) / 100,
       config.includeDividends ? "Yes" : "No",
-      { f: `=IF(M${row}="Yes",I${row},0)` },
-      { f: `=ROUND(N${row}*L${row},2)` },
+      { f: `=IF(J${row}="Yes",H${row},0)` },
+      { f: `=ROUND(K${row}*I${row},2)` },
     ]);
   });
 
@@ -228,8 +225,8 @@ export async function generateTaxWorkbook({ csvText, fileName, api, options }) {
         : "0";
       return [
         month,
-        { f: `=SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationEndRow},7)=A${row})*Calculation!$M$2:$M$${calculationEndRow})+${monthlyDividendSum("K")}` },
-        { f: `=MAX(SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationEndRow},7)=A${row})*(Calculation!$D$2:$D$${calculationEndRow}<>"Interest")*Calculation!$M$2:$M$${calculationEndRow}),0)*${Number(config.securitiesTaxRate) / 100}+MAX(SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationEndRow},7)=A${row})*(Calculation!$D$2:$D$${calculationEndRow}="Interest")*Calculation!$M$2:$M$${calculationEndRow}),0)*${Number(config.interestTaxRate) / 100}+${monthlyDividendSum("O")}` },
+        { f: `=SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationEndRow},7)=A${row})*Calculation!$M$2:$M$${calculationEndRow})+${monthlyDividendSum("H")}` },
+        { f: `=MAX(SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationEndRow},7)=A${row})*(Calculation!$D$2:$D$${calculationEndRow}<>"Interest")*Calculation!$M$2:$M$${calculationEndRow}),0)*${Number(config.securitiesTaxRate) / 100}+MAX(SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationEndRow},7)=A${row})*(Calculation!$D$2:$D$${calculationEndRow}="Interest")*Calculation!$M$2:$M$${calculationEndRow}),0)*${Number(config.interestTaxRate) / 100}+${monthlyDividendSum("L")}` },
       ];
     }),
     ["TOTAL", { f: `=SUM(B3:B${summaryMonths.length + 2})` }, { f: `=SUM(C3:C${summaryMonths.length + 2})` }],
@@ -244,7 +241,7 @@ export async function generateTaxWorkbook({ csvText, fileName, api, options }) {
   const rates = XLSX.utils.aoa_to_sheet(formulaCells(conversionRows));
   const calculation = XLSX.utils.aoa_to_sheet(formulaCells(calculationRows));
   const dividends = XLSX.utils.aoa_to_sheet(formulaCells([
-    ["DATE", "SYMBOL", "DESCRIPTION", "RATE DATE", "GROSS USD", "WITHHOLDING USD", "NET USD", "MKD PER USD", "GROSS MKD", "WITHHOLDING MKD", "NET MKD", "TAX RATE", "INCLUDED", "TAXABLE MKD", "ESTIMATED TAX MKD"],
+    ["DATE", "SYMBOL", "DESCRIPTION", "RATE DATE", "GROSS USD", "WITHHOLDING USD", "MKD PER USD", "GROSS MKD", "TAX RATE", "INCLUDED", "TAXABLE MKD", "ESTIMATED TAX MKD"],
     ...dividendRows,
   ]));
   const summary = XLSX.utils.aoa_to_sheet(formulaCells(summaryRows));
@@ -267,14 +264,14 @@ export async function generateTaxWorkbook({ csvText, fileName, api, options }) {
     { wch: 14 }, { wch: 20 }, { wch: 14 }, { wch: 26 }, { wch: 20 }, { wch: 12 }, { wch: 16 }, { wch: 22 }, { wch: 20 }, { wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 22 },
   ];
   dividends["!cols"] = [
-    { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 14 }, { wch: 16 }, { wch: 19 }, { wch: 16 }, { wch: 15 }, { wch: 16 }, { wch: 20 }, { wch: 16 }, { wch: 12 }, { wch: 11 }, { wch: 16 }, { wch: 20 },
+    { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 14 }, { wch: 16 }, { wch: 19 }, { wch: 15 }, { wch: 16 }, { wch: 12 }, { wch: 11 }, { wch: 16 }, { wch: 20 },
   ];
   original["!cols"] = Array.from({ length: Math.max(...originalRows.map((row) => row.length)) }, (_, column) => ({
     wch: Math.min(42, Math.max(12, ...originalRows.map((row) => String(row[column] ?? "").length + 2))),
   }));
   styleHeader(rates, 0, 1);
   styleHeader(calculation, 0, 12);
-  styleHeader(dividends, 0, 14);
+  styleHeader(dividends, 0, 11);
   for (let row = 1; row < calculationEndRow; row++) {
     const cell = calculation[XLSX.utils.encode_cell({ r: row, c: 4 })];
     if (cell) cell.s = { alignment: { horizontal: "right" } };
@@ -285,7 +282,7 @@ export async function generateTaxWorkbook({ csvText, fileName, api, options }) {
   summary["!cols"] = [{ wch: 14 }, { wch: 36 }, { wch: 22 }];
   calculation["!autofilter"] = { ref: `A1:M${calculationEndRow}` };
   rates["!autofilter"] = { ref: `A1:B${conversionRows.length}` };
-  dividends["!autofilter"] = { ref: `A1:O${dividendEndRow}` };
+  dividends["!autofilter"] = { ref: `A1:L${dividendEndRow}` };
   summary["!autofilter"] = { ref: `A2:C${summaryRows.length}` };
   calculation["!freeze"] = { xSplit: 0, ySplit: 1 };
   rates["!freeze"] = { xSplit: 0, ySplit: 1 };

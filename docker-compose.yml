@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: automark
-      POSTGRES_USER: automark
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-automark}
+      POSTGRES_DB: taxcalculator
+      POSTGRES_USER: taxcalculator
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taxcalculator}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U automark -d automark"]
+      test: ["CMD-SHELL", "pg_isready -U taxcalculator -d taxcalculator"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -23,10 +23,10 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: jdbc:postgresql://postgres:5432/automark
-      DATABASE_USERNAME: automark
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-automark}
-      AUTOMARK_CORS_ORIGIN: ${AUTOMARK_CORS_ORIGIN:-http://localhost:${APP_PORT:-8080}}
+      DATABASE_URL: jdbc:postgresql://postgres:5432/taxcalculator
+      DATABASE_USERNAME: taxcalculator
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-taxcalculator}
+      TAXCALCULATOR_CORS_ORIGIN: ${TAXCALCULATOR_CORS_ORIGIN:-http://localhost:${APP_PORT:-8080}}
       PORT: 8080
 
   frontend:

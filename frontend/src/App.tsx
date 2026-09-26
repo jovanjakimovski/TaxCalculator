@@ -1,5 +1,4 @@
 import { ChangeEvent, DragEvent, useMemo, useState } from "react";
-import ForexSection from "./ForexSection";
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:8080/api";
 type Row = {
@@ -10,8 +9,6 @@ type Row = {
   usdResult: number;
   mkdRate: number;
   mkdResult: number;
-  estimatedTaxMkd: number;
-  holdingDays?: number;
 };
 type Dividend = {
   date: string;
@@ -25,7 +22,6 @@ type Dividend = {
   grossMkd: number;
   withholdingMkd: number;
   netMkd: number;
-  estimatedTaxMkd: number;
 };
 type Interest = {
   date: string;
@@ -33,7 +29,15 @@ type Interest = {
   usdAmount: number;
   mkdRate: number;
   mkdAmount: number;
-  estimatedTaxMkd: number;
+};
+type MonthlySummary = {
+  month: string;
+  stocksMkd: number;
+  optionsMkd: number;
+  dividendsMkd: number;
+  interestMkd: number;
+  taxablePnlMkd: number;
+  taxMkd: number;
 };
 type Result = {
   fileName: string;
@@ -42,46 +46,37 @@ type Result = {
   realizedMkd: number;
   estimatedTaxMkd: number;
   taxableIncomeMkd: number;
-  securitiesTaxMkd: number;
-  forexUsd: number;
-  forexMkd: number;
-  forexTaxMkd: number;
-  rateOffsetDays: number;
-  stockTradeRows: number;
-  excludedNonStockRows: number;
-  excludedLossRows: number;
-  skippedRows: number;
+  monthlySummary: MonthlySummary[];
   dividendGrossUsd: number;
   dividendWithholdingUsd: number;
   dividendNetUsd: number;
   dividendGrossMkd: number;
   dividendWithholdingMkd: number;
   dividendNetMkd: number;
-  dividendTaxMkd: number;
   interestPaidUsd: number;
   interestPaidMkd: number;
   interestIncomeUsd: number;
   interestIncomeMkd: number;
   interestChargesUsd: number;
   interestChargesMkd: number;
-  interestTaxMkd: number;
   rows: Row[];
-  forexRows: Row[];
   dividends: Dividend[];
   interest: Interest[];
 };
 type Filter = "all" | "gains" | "losses";
+type WorkbookLanguage = "en" | "mk";
+type ExchangeRate = { requestedDate: string; effectiveDate: string; mkdPerUsd: number };
+type WorkbookArtifact = {
+  file: File;
+  language: WorkbookLanguage;
+  workbook: ArrayBuffer;
+  exchangeRates: ExchangeRate[];
+};
 type PaginationProps = {
   page: number;
   pageCount: number;
   onPageChange: (page: number) => void;
 };
-type CalculationOverrides = {
-  offsetSecuritiesLosses?: boolean;
-  offsetForexLosses?: boolean;
-  offsetAcrossSections?: boolean;
-};
-
 const money = (value: number | null | undefined, currency: string) =>
   typeof value === "number" && Number.isFinite(value)
     ? new Intl.NumberFormat("en-US", {
@@ -89,6 +84,14 @@ const money = (value: number | null | undefined, currency: string) =>
         currency,
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
+      }).format(value)
+    : "-";
+const moneyWhole = (value: number | null | undefined, currency: string) =>
+  typeof value === "number" && Number.isFinite(value)
+    ? new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 0,
       }).format(value)
     : "-";
 const fileSize = (bytes: number) =>
@@ -121,35 +124,21 @@ function Pagination({ page, pageCount, onPageChange }: PaginationProps) {
 
 export default function App() {
   const [file, setFile] = useState<File>();
-  const [offset, setOffset] = useState("1");
-  const [securitiesTaxRate, setSecuritiesTaxRate] = useState("10");
-  const [dividendTaxRate, setDividendTaxRate] = useState("10");
-  const [forexTaxRate, setForexTaxRate] = useState("10");
-  const [interestTaxRate, setInterestTaxRate] = useState("10");
-  const [offsetSecuritiesLosses, setOffsetSecuritiesLosses] = useState(false);
-  const [offsetForexLosses, setOffsetForexLosses] = useState(false);
-  const [offsetAcrossSections, setOffsetAcrossSections] = useState(false);
-  const [includeSecurities, setIncludeSecurities] = useState(true);
-  const [includeDividends, setIncludeDividends] = useState(true);
-  const [includeForex, setIncludeForex] = useState(false);
-  const [includeInterest, setIncludeInterest] = useState(true);
   const [result, setResult] = useState<Result>();
+  const [workbookArtifact, setWorkbookArtifact] = useState<WorkbookArtifact>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [workbookLanguage, setWorkbookLanguage] = useState<WorkbookLanguage>("en");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
-  const [showSettings, setShowSettings] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [securityPage, setSecurityPage] = useState(0);
   const [dividendPage, setDividendPage] = useState(0);
   const [interestPage, setInterestPage] = useState(0);
 
-  async function calculate(
-    nextFile = file,
-    overrides: CalculationOverrides = {},
-  ) {
+  async function calculate(nextFile = file) {
     if (!nextFile) {
       setError("Choose an IBKR Activity Statement CSV first.");
       return;
@@ -157,42 +146,19 @@ export default function App() {
     setError("");
     setLoading(true);
     try {
-      const body = new FormData();
-      body.append("file", nextFile);
-      body.append("rateOffsetDays", offset);
-      body.append("securitiesTaxRate", securitiesTaxRate);
-      body.append("dividendTaxRate", dividendTaxRate);
-      body.append("forexTaxRate", forexTaxRate);
-      body.append("interestTaxRate", interestTaxRate);
-      body.append(
-        "offsetSecuritiesLosses",
-        String(overrides.offsetSecuritiesLosses ?? offsetSecuritiesLosses),
-      );
-      body.append(
-        "offsetForexLosses",
-        String(overrides.offsetForexLosses ?? offsetForexLosses),
-      );
-      body.append(
-        "offsetAcrossSections",
-        String(overrides.offsetAcrossSections ?? offsetAcrossSections),
-      );
-      body.append("includeSecurities", String(includeSecurities));
-      body.append("includeDividends", String(includeDividends));
-      body.append("includeForex", String(includeForex));
-      body.append("includeInterest", String(includeInterest));
-      const response = await fetch(`${API}/tax/realized-gains`, {
-        method: "POST",
-        body,
+      const { calculateTaxWorkbook } = await import("./taxWorkbook.mjs");
+      const generated = await calculateTaxWorkbook({
+        csvText: await nextFile.text(),
+        exchangeRatesApi: `${API}/tax/exchange-rates`,
+        language: workbookLanguage,
       });
-      if (!response.ok)
-        throw new Error(
-          (
-            await response
-              .json()
-              .catch(() => ({ message: response.statusText }))
-          ).message,
-        );
-      setResult(await response.json());
+      setResult({ ...generated.calculationResult, fileName: nextFile.name });
+      setWorkbookArtifact({
+        file: nextFile,
+        language: workbookLanguage,
+        workbook: generated.workbook,
+        exchangeRates: generated.exchangeRates,
+      });
       setQuery("");
       setFilter("all");
       setSecurityPage(0);
@@ -203,10 +169,6 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }
-
-  function recalculateWith(overrides: CalculationOverrides) {
-    if (file) void calculate(file, overrides);
   }
 
   async function runSampleCalculation() {
@@ -234,6 +196,7 @@ export default function App() {
     }
     setFile(nextFile);
     setResult(undefined);
+    setWorkbookArtifact(undefined);
     setError("");
   }
 
@@ -251,11 +214,25 @@ export default function App() {
     setError("");
     setExporting(true);
     try {
-      const { generateTaxWorkbook } = await import("./taxWorkbook.mjs");
-      const workbook = await generateTaxWorkbook({
-        csvText: await file.text(),
-        exchangeRatesApi: `${API}/tax/exchange-rates`,
-      });
+      let workbook = workbookArtifact?.file === file && workbookArtifact.language === workbookLanguage
+        ? workbookArtifact.workbook
+        : undefined;
+      if (!workbook) {
+        const { calculateTaxWorkbook } = await import("./taxWorkbook.mjs");
+        const generated = await calculateTaxWorkbook({
+          csvText: await file.text(),
+          exchangeRatesApi: `${API}/tax/exchange-rates`,
+          language: workbookLanguage,
+          exchangeRates: workbookArtifact?.file === file ? workbookArtifact.exchangeRates : undefined,
+        });
+        workbook = generated.workbook;
+        setWorkbookArtifact({
+          file,
+          language: workbookLanguage,
+          workbook,
+          exchangeRates: generated.exchangeRates,
+        });
+      }
       const url = URL.createObjectURL(
         new Blob([workbook], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
       );
@@ -354,9 +331,8 @@ export default function App() {
           <p className="eyebrow">IBKR / NBRNM / UJP</p>
           <h1>Upload your IBKR statement.</h1>
           <p className="hero-lede">
-            Get a clear MKD estimate from your realized stock trades and
-            dividends. Start with the CSV and review the result before you
-            export it.
+            Review closed stock and option trades, dividends, interest, and
+            one monthly MKD tax estimate shared with your exported workpaper.
           </p>
           <button className="guide-link" onClick={() => setShowGuide(true)}>
             Not sure where to start? Open the guide <span>-&gt;</span>
@@ -367,8 +343,8 @@ export default function App() {
           <div>
             <strong>What this calculates</strong>
             <p>
-              Realized stock P/L and dividend income. Options, FX, awards, and
-              unrealized gains are excluded.
+              Realized stock and option P/L, gross dividends, and positive
+              monthly net interest. Forex and unrealized gains are excluded.
             </p>
           </div>
         </div>
@@ -410,14 +386,26 @@ export default function App() {
             {loading ? "Loading sample..." : "Try with sample CSV"}
           </button>
           {file && (
-            <button
-              type="button"
-              className="sample-button"
-              onClick={() => void download()}
-              disabled={exporting}
-            >
-              {exporting ? "Generating workbook..." : "Export CSV workpaper"}
-            </button>
+            <div className="export-controls">
+              <label className="export-language">
+                <span>{workbookLanguage === "mk" ? "Јазик на работната книга" : "Workbook language"}</span>
+                <select
+                  value={workbookLanguage}
+                  onChange={(event) => setWorkbookLanguage(event.target.value as WorkbookLanguage)}
+                >
+                  <option value="en">English</option>
+                  <option value="mk">Македонски</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                className="sample-button"
+                onClick={() => void download()}
+                disabled={exporting}
+              >
+                {exporting ? "Generating workbook..." : "Export CSV workpaper"}
+              </button>
+            </div>
           )}
           {file && (
             <div className="file-chip">
@@ -429,6 +417,7 @@ export default function App() {
                 onClick={() => {
                   setFile(undefined);
                   setResult(undefined);
+                  setWorkbookArtifact(undefined);
                 }}
               >
                 x
@@ -436,173 +425,19 @@ export default function App() {
             </div>
           )}
           <div className="settings-divider">
-            <span>Calculation assumptions</span>
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => setShowSettings(!showSettings)}
-            >
-              {showSettings ? "Hide" : "Edit"}
-            </button>
-          </div>
-          <div className={`settings ${showSettings ? "settings-open" : ""}`}>
-            <label>
-              Exchange-rate date
-              <select
-                value={offset}
-                onChange={(e) => setOffset(e.target.value)}
-              >
-                <option value="0">Trade date (T)</option>
-                <option value="1">Previous working day (T-1)</option>
-              </select>
-              <small>Uses the official NBRNM middle rate.</small>
-            </label>
-            <div className="tax-fields">
-              <label>
-                Securities
-                <div className="input-with-suffix">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={securitiesTaxRate}
-                    onChange={(e) => setSecuritiesTaxRate(e.target.value)}
-                    aria-label="Securities tax rate"
-                  />
-                  <span>%</span>
-                </div>
-              </label>
-              <label>
-                Dividends
-                <div className="input-with-suffix">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={dividendTaxRate}
-                    onChange={(e) => setDividendTaxRate(e.target.value)}
-                    aria-label="Dividends tax rate"
-                  />
-                  <span>%</span>
-                </div>
-              </label>
-              <label>
-                Forex
-                <div className="input-with-suffix">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={forexTaxRate}
-                    onChange={(e) => setForexTaxRate(e.target.value)}
-                    aria-label="Forex tax rate"
-                  />
-                  <span>%</span>
-                </div>
-              </label>
-              <label>
-                Interest
-                <div className="input-with-suffix">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={interestTaxRate}
-                    onChange={(e) => setInterestTaxRate(e.target.value)}
-                    aria-label="Interest tax rate"
-                  />
-                  <span>%</span>
-                </div>
-              </label>
-              <small>Set each section rate independently.</small>
-            </div>
-            <div className="offset-settings">
-              <strong>Included in total</strong>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={includeSecurities}
-                  onChange={(e) => setIncludeSecurities(e.target.checked)}
-                />{" "}
-                Securities
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={includeDividends}
-                  onChange={(e) => setIncludeDividends(e.target.checked)}
-                />{" "}
-                Dividends
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={includeForex}
-                  onChange={(e) => setIncludeForex(e.target.checked)}
-                />{" "}
-                Forex
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={includeInterest}
-                  onChange={(e) => setIncludeInterest(e.target.checked)}
-                />{" "}
-                Interest
-              </label>
-              <strong>Loss offset rules</strong>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={offsetSecuritiesLosses}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setOffsetSecuritiesLosses(checked);
-                    recalculateWith({ offsetSecuritiesLosses: checked });
-                  }}
-                />{" "}
-                Securities losses offset gains
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={offsetForexLosses}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setOffsetForexLosses(checked);
-                    recalculateWith({ offsetForexLosses: checked });
-                  }}
-                />{" "}
-                Forex losses offset gains
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={offsetAcrossSections}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setOffsetAcrossSections(checked);
-                    recalculateWith({ offsetAcrossSections: checked });
-                  }}
-                />{" "}
-                Allow losses across all sections
-              </label>
-              <small>
-                Default: sections stay separate. Dividends have no loss offset.
-              </small>
-            </div>
+            <span>Workpaper assumptions</span>
           </div>
           <div className="assumption-row">
-            <span>Tax rates</span>
-            <strong>
-              {securitiesTaxRate}% / {dividendTaxRate}% / {forexTaxRate}% /{" "}
-              {interestTaxRate}%
-            </strong>
+            <span>Exchange-rate basis</span>
+            <strong>Previous working day (T-1)</strong>
           </div>
           <div className="assumption-row">
-            <span>FX basis</span>
-            <strong>{offset === "0" ? "Trade date" : "T-1"}</strong>
+            <span>Estimated tax rates</span>
+            <strong>10%</strong>
           </div>
+          <p className="settings-note">
+            Stocks, options, and dividends offset by symbol and month. Positive monthly net interest is included; Forex is excluded.
+          </p>
           <button
             className="primary-action"
             onClick={() => calculate()}
@@ -613,7 +448,7 @@ export default function App() {
           </button>
           {error && <p className="error">{error}</p>}
           <p className="privacy-note">
-            <span>Lock</span> Your statement stays in this local workspace.
+            <span>Lock</span> Your CSV is processed in this browser. Only its date range is sent to retrieve exchange rates.
           </p>
         </aside>
         <div className="results-panel">
@@ -643,7 +478,7 @@ export default function App() {
                   <p className="eyebrow">Step 2 / Review</p>
                   <h2>{result.fileName}</h2>
                   <p className="muted">
-                    {result.transactionCount} closed stock events calculated
+                    {result.transactionCount} closed stock/option trades converted
                     with NBRNM rates.
                   </p>
                 </div>
@@ -659,26 +494,67 @@ export default function App() {
                 <section className="metrics">
                   <div className="metric metric-primary">
                     <span>Estimated tax</span>
-                    <strong>{money(result.estimatedTaxMkd, "MKD")}</strong>
-                    <small>Tax due under selected rules</small>
+                    <strong>{moneyWhole(result.estimatedTaxMkd, "MKD")}</strong>
+                    <small>Rounded up to whole MKD under workpaper rules</small>
                   </div>
                   <div className="metric">
                     <span>Total taxable income</span>
                     <strong>{money(result.taxableIncomeMkd, "MKD")}</strong>
-                    <small>Income base after selected offsets</small>
+                    <small>After monthly, same-symbol offsets</small>
                   </div>
                   <div className="metric">
                     <span>Realized P/L</span>
                     <strong>{money(result.realizedUsd, "USD")}</strong>
-                    <small>Actual trading result before tax rules</small>
+                    <small>Closed stock and option trades</small>
                   </div>
                   <div className="metric">
                     <span>Converted P/L</span>
                     <strong>{money(result.realizedMkd, "MKD")}</strong>
-                    <small>
-                      Combined stock-trade result converted to MKD at NBRNM
-                      rates
-                    </small>
+                    <small>Converted at NBRNM previous-working-day rates</small>
+                  </div>
+                </section>
+                <section className="category-section">
+                  <div className="calculation-heading">
+                    <div>
+                      <p className="eyebrow">Monthly workpaper summary</p>
+                      <h3>Taxable income and tax</h3>
+                    </div>
+                    <span>MKD · matches the exported Summary</span>
+                  </div>
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Month</th>
+                          <th className="number">Stocks P/L</th>
+                          <th className="number">Options P/L</th>
+                          <th className="number">Dividends</th>
+                          <th className="number">Net interest</th>
+                          <th className="number">Total taxable P/L</th>
+                          <th className="number">Tax</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result.monthlySummary.map((month) => (
+                          <tr key={month.month}>
+                            <td>{month.month}</td>
+                            <td className="number">{money(month.stocksMkd, "MKD")}</td>
+                            <td className="number">{money(month.optionsMkd, "MKD")}</td>
+                            <td className="number">{money(month.dividendsMkd, "MKD")}</td>
+                            <td className="number">{money(month.interestMkd, "MKD")}</td>
+                            <td className="number">{money(month.taxablePnlMkd, "MKD")}</td>
+                            <td className="number tax-value">{money(month.taxMkd, "MKD")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <th>Total</th>
+                          <td colSpan={5}></td>
+                          <th className="number tax-value">{moneyWhole(result.estimatedTaxMkd, "MKD")}</th>
+                        </tr>
+                      </tfoot>
+                    </table>
                   </div>
                 </section>
                 <details className="category-section" open>
@@ -686,14 +562,14 @@ export default function App() {
                     <span className="category-title">
                       <span className="category-icon stocks-icon">S</span>
                       <span>
-                        <strong>Securities</strong>
+                        <strong>Stocks and options</strong>
                         <small>
-                          {result.transactionCount} realized security events
+                          {result.transactionCount} closed transactions
                         </small>
                       </span>
                     </span>
                     <span className="category-total">
-                      Total tax {money(result.securitiesTaxMkd, "MKD")}{" "}
+                      Realized P/L {money(result.realizedMkd, "MKD")} {" "}
                       <span className="chevron">v</span>
                     </span>
                   </summary>
@@ -743,25 +619,19 @@ export default function App() {
                     <table>
                       <thead>
                         <tr>
+                          <th>Asset class</th>
                           <th>Symbol</th>
                           <th>Trade date</th>
                           <th>Rate date</th>
                           <th className="number">USD result</th>
                           <th className="number">MKD / USD</th>
                           <th className="number">MKD result</th>
-                          <th className="number">10% tax due</th>
                         </tr>
                       </thead>
                       <tbody>
                         {paginatedRows.map((row, index) => (
-                          <tr
-                            className={
-                              row.estimatedTaxMkd === 0 && row.usdResult < 0
-                                ? "not-taxable-row"
-                                : ""
-                            }
-                            key={`${row.symbol}-${row.date}-${activeSecurityPage}-${index}`}
-                          >
+                          <tr key={`${row.symbol}-${row.date}-${activeSecurityPage}-${index}`}>
+                            <td>{row.assetCategory === "Equity and Index Options" ? "Options" : "Stocks"}</td>
                             <td>
                               <span className="symbol-pill">
                                 {row.symbol.slice(0, 1)}
@@ -785,15 +655,12 @@ export default function App() {
                             >
                               {money(row.mkdResult, "MKD")}
                             </td>
-                            <td className="number tax-value">
-                              {money(row.estimatedTaxMkd, "MKD")}
-                            </td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
                         <tr>
-                          <th colSpan={3}>Total</th>
+                          <th colSpan={4}>Total</th>
                           <th className="number">
                             {money(
                               visibleRows.reduce(
@@ -813,15 +680,6 @@ export default function App() {
                               "MKD",
                             )}
                           </th>
-                          <th className="number tax-value">
-                            {money(
-                              visibleRows.reduce(
-                                (total, row) => total + row.estimatedTaxMkd,
-                                0,
-                              ),
-                              "MKD",
-                            )}
-                          </th>
                         </tr>
                       </tfoot>
                     </table>
@@ -834,7 +692,7 @@ export default function App() {
                       Showing {paginatedRows.length} of {visibleRows.length}{" "}
                       filtered rows
                     </span>
-                    <span>Tax due is an estimate at {securitiesTaxRate}%</span>
+                    <span>Same-symbol monthly offsets are shown in the Summary.</span>
                     <Pagination
                       page={activeSecurityPage}
                       pageCount={securityPageCount}
@@ -853,7 +711,7 @@ export default function App() {
                         </span>
                       </span>
                       <span className="category-total">
-                        Total tax {money(result.dividendTaxMkd, "MKD")}{" "}
+                        Gross dividends {money(result.dividendGrossMkd, "MKD")} {" "}
                         <span className="chevron">v</span>
                       </span>
                     </summary>
@@ -864,7 +722,7 @@ export default function App() {
                           <h3>Payments and withholding</h3>
                         </div>
                         <span>
-                          Gross amount is taxed; withholding is shown separately
+                          Gross dividends are shown separately; tax appears in the monthly Summary
                         </span>
                       </div>
                       <div className="dividend-summary">
@@ -890,11 +748,6 @@ export default function App() {
                           <strong>{money(result.dividendNetUsd, "USD")}</strong>
                           <small>{money(result.dividendNetMkd, "MKD")}</small>
                         </div>
-                        <div>
-                          <span>Dividend tax</span>
-                          <strong>{money(result.dividendTaxMkd, "MKD")}</strong>
-                          <small>10% of gross paid</small>
-                        </div>
                       </div>
                       <div className="dividend-table-wrap">
                         <table>
@@ -907,7 +760,6 @@ export default function App() {
                               <th className="number">Gross USD</th>
                               <th className="number">Withholding</th>
                               <th className="number">Net USD</th>
-                              <th className="number">10% tax due</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -930,9 +782,6 @@ export default function App() {
                                 <td className="number">
                                   {money(dividend.netUsd, "USD")}
                                 </td>
-                                <td className="number tax-value">
-                                  {money(dividend.estimatedTaxMkd, "MKD")}
-                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -947,9 +796,6 @@ export default function App() {
                               </th>
                               <th className="number">
                                 {money(result.dividendNetUsd, "USD")}
-                              </th>
-                              <th className="number tax-value">
-                                {money(result.dividendTaxMkd, "MKD")}
                               </th>
                             </tr>
                           </tfoot>
@@ -976,14 +822,11 @@ export default function App() {
                         <span className="category-icon interest-icon">I</span>
                         <span>
                           <strong>Interest income / charges</strong>
-                          <small>
-                            {result.interest.length} interest entries, positive
-                            income taxed at {interestTaxRate}%
-                          </small>
+                          <small>{result.interest.length} interest entries</small>
                         </span>
                       </span>
                       <span className="category-total interest-total">
-                        Total tax {money(result.interestTaxMkd, "MKD")}{" "}
+                        Net interest {money(result.interestPaidMkd, "MKD")} {" "}
                         <span className="chevron">v</span>
                       </span>
                     </summary>
@@ -991,9 +834,7 @@ export default function App() {
                       <div className="interest-notice">
                         <strong>Included in calculation</strong>
                         <span>
-                          Positive interest income is taxed at {interestTaxRate}
-                          %. Negative margin interest is included for visibility
-                          but has 0 tax and does not offset another category.
+                          Positive monthly net interest is included in taxable income. Negative monthly net interest contributes zero.
                         </span>
                       </div>
                       <div className="interest-summary">
@@ -1015,13 +856,6 @@ export default function App() {
                             {money(result.interestChargesMkd, "MKD")}
                           </small>
                         </div>
-                        <div>
-                          <span>Interest tax</span>
-                          <strong className="tax-value">
-                            {money(result.interestTaxMkd, "MKD")}
-                          </strong>
-                          <small>{interestTaxRate}% of positive income</small>
-                        </div>
                       </div>
                       <div className="interest-table-wrap">
                         <table>
@@ -1032,7 +866,6 @@ export default function App() {
                               <th className="number">USD amount</th>
                               <th className="number">MKD / USD</th>
                               <th className="number">MKD amount</th>
-                              <th className="number">10% tax due</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1053,24 +886,18 @@ export default function App() {
                                 >
                                   {money(item.mkdAmount, "MKD")}
                                 </td>
-                                <td className="number tax-value">
-                                  {money(item.estimatedTaxMkd, "MKD")}
-                                </td>
                               </tr>
                             ))}
                           </tbody>
                           <tfoot>
                             <tr>
-                              <th colSpan={2}>Net interest / total tax</th>
+                              <th colSpan={2}>Net interest</th>
                               <th className="number interest-value">
                                 {money(result.interestPaidUsd, "USD")}
                               </th>
                               <th></th>
                               <th className="number interest-value">
                                 {money(result.interestPaidMkd, "MKD")}
-                              </th>
-                              <th className="number tax-value">
-                                {money(result.interestTaxMkd, "MKD")}
                               </th>
                             </tr>
                           </tfoot>
@@ -1090,14 +917,6 @@ export default function App() {
                     </section>
                   </details>
                 )}
-                <ForexSection
-                  rows={result.forexRows}
-                  taxRate={forexTaxRate}
-                  forexUsd={result.forexUsd}
-                  forexMkd={result.forexMkd}
-                  forexTaxMkd={result.forexTaxMkd}
-                  money={money}
-                />
               </section>
             </>
           )}
@@ -1151,8 +970,8 @@ export default function App() {
                     and estimated tax.
                   </p>
                   <p>
-                    Forex activity is shown separately and excluded from the
-                    total by default.
+                    Stocks, options, and dividends offset by symbol and month.
+                    Positive monthly net interest is included; Forex is excluded.
                   </p>
                 </div>
               </article>
@@ -1162,8 +981,7 @@ export default function App() {
                   <h3>Official MKD conversion</h3>
                   <p>
                     USD amounts are converted to MKD using official NBRM middle
-                    rates. You can choose the transaction date or the previous
-                    working day as the rate date.
+                    rates using the previous working day (T-1) as the rate date.
                   </p>
                 </div>
               </article>
@@ -1173,8 +991,8 @@ export default function App() {
                   <h3>Review and adjust</h3>
                   <p>
                     Upload your own CSV or try the sample file. Review the
-                    paginated schedules, tax rates, included sections, and
-                    loss-offset rules before exporting.
+                    schedules and monthly Summary; Calculate and Export use the
+                    same browser-side workpaper rules.
                   </p>
                   <div className="guide-callout">
                     <strong>Important scope</strong>

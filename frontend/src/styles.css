@@ -318,6 +318,31 @@ h2 {
   cursor: not-allowed;
   opacity: 0.5;
 }
+.export-controls {
+  display: grid;
+  gap: 7px;
+  margin-top: 9px;
+}
+.export-language {
+  display: grid;
+  gap: 5px;
+  color: #385b56;
+  font-size: 11px;
+  font-weight: 700;
+}
+.export-language select {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid #cbd9d4;
+  border-radius: 6px;
+  background: #fff;
+  color: #234742;
+  font-size: 12px;
+}
+.export-controls .sample-button {
+  margin-top: 0;
+}
 .upload-symbol {
   display: grid;
   place-items: center;

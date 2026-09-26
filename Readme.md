@@ -53,22 +53,23 @@ For new AWS testing, `docker-compose.aws.yml` runs without `.env` and uses the t
 
 ## Report Output
 
-The UI and CLI use the same CSV-only workbook generator and produce the same five-sheet Excel workbook. UI tax settings do not affect the export. Apart from the official exchange-rate endpoint, workbook contents are derived from the uploaded CSV and fixed assumptions:
+The UI and CLI use the same CSV-only workbook generator and produce the same four-sheet Excel workbook. UI tax settings do not affect the export. Apart from the official exchange-rate endpoint, workbook contents are derived from the uploaded CSV and fixed assumptions:
+
+Choose English or Macedonian beside the UI export button (English is the default). The CLI also accepts `--language mk`. Generated sheet names, headings, and asset-class labels are translated; the original IBKR Activity Statement rows remain unchanged.
 
 | Sheet | Contents |
 |---|---|
 | **Activity Statement** | Original IBKR Activity Statement |
 | **Conversion Rates** | One transaction-date column and the official USD-MKD rate for that date |
-| **Calculation** | Securities/options and interest transactions, with formulas referencing the original statement and exchange-rate sheet |
-| **Dividends** | One row per payment with gross, withholding evidence, exchange rate, taxable amount, and estimated tax |
-| **Summary** | Formula-driven monthly realized P/L including gross dividends, and estimated tax |
+| **Calculation** | Securities/options, interest, and gross dividends, with formulas referencing the original statement and exchange-rate sheet; dividend amounts use the existing Realized P/L columns, and option contract symbols remain visible |
+| **Summary** | Monthly realized P/L by asset class, total taxable P/L after same-symbol stock/options/dividend offsets, and estimated tax |
 
 ## Tax Calculation Notes
 
 - Positive gains use the full gain as the taxable base regardless of holding period.
-- Dividend tax and Summary P/L use gross dividends only. Foreign withholding appears as evidence on the Dividends sheet but is excluded from the taxable amount and Summary.
-- Securities/options losses offset gains only within the same month. Losses are not carried forward or applied against dividends or interest.
-- Positive interest is taxed separately. Negative interest charges are shown but do not reduce other categories.
+- Dividend tax and Summary P/L use gross dividends only. Foreign withholding is excluded from the taxable amount and Summary.
+- Summary asset-class columns show unoffset monthly realized P/L, including losses. Total taxable P/L combines stock, options, and dividend results only when they share the same underlying symbol and month. IBKR option symbols such as `HIMS 16JAN26 60 C` and `HIMS  260116C00060000` are matched to underlying symbol `HIMS`; losses are not carried forward or applied against interest.
+- Gross dividends are included separately. Interest is netted within each month and only positive monthly interest is taxable; negative interest does not reduce other categories.
 - The estimates and loss-treatment assumptions should be confirmed against current UJP rules. This tool is not a filing system or legal/tax advice.
 - IBKR realized P/L and basis values are used; the app does not independently rebuild FIFO cost basis.
 

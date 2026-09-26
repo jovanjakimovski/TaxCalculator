@@ -1,5 +1,26 @@
 import XLSX from "xlsx-js-style";
 
+const workbookTranslations = {
+  en: {
+    sheets: { activity: "Activity Statement", rates: "Conversion Rates", calculation: "Calculation", summary: "Summary" },
+    rateHeaders: ["DATE", "MKD PER USD"],
+    calculationHeaders: ["DATE", "T-1 DATE", "SYMBOL", "ASSET CLASS", "QUANTITY", "COST BASIS", "SALE PRICE / SHARE", "SALE PRICE TOTAL", "REALIZED P/L", "CURRENCY", "EXCHANGE RATE", "REALIZED P/L (MKD)"],
+    assets: { stocks: "Stocks", options: "Equity and Index Options", dividends: "Dividends", interest: "Interest" },
+    summaryTitle: "SUMMARY",
+    summaryTotal: "TOTAL",
+    summaryHeaders: ["MONTH", "STOCKS REALIZED P/L (MKD)", "OPTIONS REALIZED P/L (MKD)", "DIVIDENDS REALIZED P/L (MKD)", "INTEREST (MKD)", "TOTAL REALIZED TAXABLE P/L (MKD)", "TAX (MKD)"],
+  },
+  mk: {
+    sheets: { activity: "Извод од IBKR", rates: "Девизни курсеви", calculation: "Пресметка", summary: "Резиме" },
+    rateHeaders: ["ДАТУМ", "КУРС (МКД ЗА 1 USD)"],
+    calculationHeaders: ["ДАТУМ", "ДАТУМ НА КУРСОТ (Т-1)", "СИМБОЛ", "ВИД НА ФИНАНСИСКИ ИНСТРУМЕНТ", "КОЛИЧИНА", "НАБАВНА ВРЕДНОСТ", "ПРОДАЖНА ЦЕНА ПО АКЦИЈА", "ВКУПЕН ИЗНОС НА ПРОДАЖБАТА", "ОСТВАРЕНА ДОБИВКА ИЛИ ЗАГУБА", "ВАЛУТА", "ДЕВИЗЕН КУРС", "ОСТВАРЕНА ДОБИВКА ИЛИ ЗАГУБА (МКД)"],
+    assets: { stocks: "Акции", options: "Опции", dividends: "Дивиденди", interest: "Камата" },
+    summaryTitle: "РЕЗИМЕ",
+    summaryTotal: "ВКУПНО",
+    summaryHeaders: ["МЕСЕЦ", "ОСТВАРЕНА ДОБИВКА ИЛИ ЗАГУБА ОД АКЦИИ (МКД)", "ОСТВАРЕНА ДОБИВКА ИЛИ ЗАГУБА ОД ОПЦИИ (МКД)", "ДИВИДЕНДИ (МКД)", "НЕТО КАМАТА (МКД)", "ВКУПНА ОДАНОЧЛИВА ДОБИВКА (МКД)", "ДАНОК (МКД)"],
+  },
+};
+
 function csvLine(line) {
   const cells = [];
   let cell = "";
@@ -43,19 +64,27 @@ function errorMessage(response, prefix) {
   return response.text().then((message) => `${prefix}: ${message || response.statusText}`);
 }
 
-export async function generateTaxWorkbook({ csvText, exchangeRatesApi }) {
+async function buildTaxWorkbook({ csvText, exchangeRatesApi, language = "en", exchangeRates }) {
+  const labels = workbookTranslations[language] ?? workbookTranslations.en;
+  const sheetReference = (name) => `'${name.replaceAll("'", "''")}'!`;
+  const activitySheetReference = sheetReference(labels.sheets.activity);
+  const ratesSheetReference = sheetReference(labels.sheets.rates);
+  const calculationSheetReference = sheetReference(labels.sheets.calculation);
   const csvRows = csvText.split(/\r?\n/).filter((line) => line.length > 0).map(csvLine);
   const [periodStart, periodEnd] = statementPeriod(csvRows);
-  if (!exchangeRatesApi) throw new Error("An exchange-rate API URL is required.");
+  if (!exchangeRatesApi && !exchangeRates) throw new Error("An exchange-rate API URL is required.");
   const config = { rateOffsetDays: 1, securitiesTaxRate: 10, dividendTaxRate: 10, interestTaxRate: 10 };
-  const ratesUrl = `${exchangeRatesApi}?${new URLSearchParams({
-    startDate: periodStart,
-    endDate: periodEnd,
-    rateOffsetDays: String(config.rateOffsetDays),
-  })}`;
-  const ratesResponse = await fetch(ratesUrl);
-  if (!ratesResponse.ok) throw new Error(await errorMessage(ratesResponse, "Exchange-rate API returned an error"));
-  const fullRates = await ratesResponse.json();
+  let fullRates = exchangeRates;
+  if (!fullRates) {
+    const ratesUrl = `${exchangeRatesApi}?${new URLSearchParams({
+      startDate: periodStart,
+      endDate: periodEnd,
+      rateOffsetDays: String(config.rateOffsetDays),
+    })}`;
+    const ratesResponse = await fetch(ratesUrl);
+    if (!ratesResponse.ok) throw new Error(await errorMessage(ratesResponse, "Exchange-rate API returned an error"));
+    fullRates = await ratesResponse.json();
+  }
 
   const originalRows = csvRows;
   const dateText = (value) => String(value ?? "").slice(0, 10);
@@ -67,7 +96,7 @@ export async function generateTaxWorkbook({ csvText, exchangeRatesApi }) {
   const formula = (f, v, t = "n") => ({ f, v, t });
   const rateByDate = new Map(fullRates.map((row) => [row.requestedDate, row]));
   const formulas = {
-    rate: (row) => `=IFERROR(VLOOKUP(A${row},'Conversion Rates'!$A:$B,2,FALSE),0)`,
+    rate: (row) => `=IFERROR(VLOOKUP(A${row},${ratesSheetReference}$A:$B,2,FALSE),0)`,
   };
   const originalSheetRow = (index) => index + 1;
   const sourceRows = originalRows.map((row, index) => ({ row, sheetRow: originalSheetRow(index) }));
@@ -77,7 +106,7 @@ export async function generateTaxWorkbook({ csvText, exchangeRatesApi }) {
     return rate;
   };
   const conversionRows = [
-    ["DATE", "MKD PER USD"],
+    labels.rateHeaders,
     ...fullRates.map((row) => [row.requestedDate, row.mkdPerUsd]),
   ];
   const securities = [];
@@ -119,37 +148,35 @@ export async function generateTaxWorkbook({ csvText, exchangeRatesApi }) {
     }
   });
 
-  const calculationRows = [["DATE", "RATE DATE", "SYMBOL", "ASSET CLASS", "CONTRACT MULTIPLIER", "QUANTITY", "COST BASIS", "SALE PRICE / SHARE", "SALE PRICE TOTAL", "REALIZED P/L", "CURRENCY", "EXCHANGE RATE", "REALIZED P/L (MKD)"]];
+  const calculationRows = [labels.calculationHeaders];
   securities.forEach((item) => {
     const row = calculationRows.length + 1;
     const ref = item.sheetRow;
-    const column = (letter) => `'Activity Statement'!${letter}${ref}`;
+    const column = (letter) => `${activitySheetReference}${letter}${ref}`;
     calculationRows.push([
       formula(`=LEFT(${column("G")},10)`, item.date, "str"),
       item.rate.effectiveDate,
       formula(`=${column("F")}`, item.row[5], "str"),
-      formula(`=${column("D")}`, item.row[3], "str"),
-      formula(`=IF(D${row}="Equity and Index Options",100,1)`, item.row[3] === "Equity and Index Options" ? 100 : 1),
+      item.row[3] === "Equity and Index Options" ? labels.assets.options : labels.assets.stocks,
       formula(`=ABS(VALUE(${column("H")}))`, Math.abs(numericCell(item.row[7]))),
       formula(`=ABS(VALUE(${column("M")}))`, Math.abs(numericCell(item.row[12]))),
-      formula(`=VALUE(${column("I")})`, numericCell(item.row[8])),
+      item.row[3] === "Equity and Index Options" ? "" : formula(`=VALUE(${column("I")})`, numericCell(item.row[8])),
       formula(`=VALUE(${column("K")})`, numericCell(item.row[10])),
       formula(`=VALUE(${column(item.row[3] === "Forex" ? "O" : "N")})`, item.usdResult),
       formula(`=${column("E")}`, item.row[4], "str"),
       formula(formulas.rate(row), item.rate.mkdPerUsd),
-      formula(`=J${row}*L${row}`, item.mkdResult),
+      formula(`=I${row}*K${row}`, item.mkdResult),
     ]);
   });
   interests.forEach((item) => {
     const row = calculationRows.length + 1;
     const ref = item.sheetRow;
-    const column = (letter) => `'Activity Statement'!${letter}${ref}`;
+    const column = (letter) => `${activitySheetReference}${letter}${ref}`;
     calculationRows.push([
       formula(`=LEFT(${column("D")},10)`, item.date, "str"),
       item.rate.effectiveDate,
       "",
-      "Interest",
-      1,
+      labels.assets.interest,
       "",
       "",
       "",
@@ -157,40 +184,43 @@ export async function generateTaxWorkbook({ csvText, exchangeRatesApi }) {
       formula(`=VALUE(${column("F")})`, item.usdAmount),
       "USD",
       formula(formulas.rate(row), item.rate.mkdPerUsd),
-      formula(`=J${row}*L${row}`, item.mkdAmount),
+      formula(`=I${row}*K${row}`, item.mkdAmount),
     ]);
   });
 
   const formulaSum = (entries, absolute = false) => {
     if (entries.length === 0) return formula("=0", 0);
-    const refs = entries.map(({ sheetRow }) => `${absolute ? "ABS(" : ""}VALUE('Activity Statement'!F${sheetRow})${absolute ? ")" : ""}`);
+    const refs = entries.map(({ sheetRow }) => `${absolute ? "ABS(" : ""}VALUE(${activitySheetReference}F${sheetRow})${absolute ? ")" : ""}`);
     return formula(`=SUM(${refs.join(",")})`, entries.reduce((sum, entry) => sum + (absolute ? Math.abs(entry.amount) : entry.amount), 0));
   };
-  const dividendRows = [];
   for (const item of dividendsByKey.values()) {
-    const row = dividendRows.length + 2;
-    const descriptionSourceRow = item.gross[0]?.sheetRow ?? item.withholding[0].sheetRow;
-    const descriptionSource = `'Activity Statement'!E${descriptionSourceRow}`;
+    if (item.gross.length === 0) continue;
+    const row = calculationRows.length + 1;
+    const sourceRow = item.gross[0].sheetRow;
     const gross = item.gross.reduce((sum, entry) => sum + entry.amount, 0);
-    const withholding = item.withholding.reduce((sum, entry) => sum + Math.abs(entry.amount), 0);
     const grossMkd = gross * item.rate.mkdPerUsd;
-    const grossFormula = formulaSum(item.gross);
-    const withholdingFormula = formulaSum(item.withholding, true);
-    dividendRows.push([
-      formula(`=LEFT('Activity Statement'!D${item.gross[0]?.sheetRow ?? item.withholding[0].sheetRow},10)`, item.date, "str"),
-      formula(`=LEFT(${descriptionSource},FIND(" (",${descriptionSource}&" ( ")-1)`, item.symbol, "str"),
-      formula(`=SUBSTITUTE(LEFT(${descriptionSource},FIND(" - US Tax",${descriptionSource}&" - US Tax")-1)," (Ordinary Dividend)","")`, item.description, "str"),
+    calculationRows.push([
+      formula(`=LEFT(${activitySheetReference}D${sourceRow},10)`, item.date, "str"),
       item.rate.effectiveDate,
-      grossFormula,
-      withholdingFormula,
-      formula(`=IFERROR(VLOOKUP(A${row},'Conversion Rates'!$A:$B,2,FALSE),0)`, item.rate.mkdPerUsd),
-      formula(`=ROUND(E${row}*G${row},2)`, Math.round(grossMkd * 100) / 100),
-      formula("=10%", config.dividendTaxRate / 100),
-      "Yes",
-      formula(`=H${row}`, Math.round(grossMkd * 100) / 100),
-      formula(`=ROUND(K${row}*I${row},2)`, Math.round(grossMkd * config.dividendTaxRate) / 100),
+      item.symbol,
+      labels.assets.dividends,
+      "",
+      "",
+      "",
+      "",
+      formulaSum(item.gross),
+      "USD",
+      formula(formulas.rate(row), item.rate.mkdPerUsd),
+      formula(`=I${row}*K${row}`, grossMkd),
     ]);
   }
+
+  calculationRows.splice(1, calculationRows.length - 1, ...calculationRows.slice(1).sort((left, right) => String(left[0].v).localeCompare(String(right[0].v))));
+  calculationRows.slice(1).forEach((row, index) => {
+    const sheetRow = index + 2;
+    row[10] = formula(formulas.rate(sheetRow), row[10].v);
+    row[11] = formula(`=I${sheetRow}*K${sheetRow}`, row[11].v);
+  });
 
   const summaryMonths = [];
   for (let month = periodStart.slice(0, 7); month <= periodEnd.slice(0, 7);) {
@@ -200,87 +230,226 @@ export async function generateTaxWorkbook({ csvText, exchangeRatesApi }) {
     month = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}`;
   }
   const calculationEndRow = calculationRows.length;
-  const dividendEndRow = dividendRows.length + 1;
   const calculationFormulaEndRow = Math.max(calculationEndRow, 2);
-  const dividendFormulaEndRow = Math.max(dividendEndRow, 2);
+  const cellValue = (cell) => cell && typeof cell === "object" ? cell.v : cell;
   const monthlySummaryRows = summaryMonths.map((month, index) => {
     const row = index + 3;
     const monthCalculationRows = calculationRows.slice(1).filter((item) => String(item[0].v).slice(0, 7) === month);
-    const monthDividendRows = dividendRows.filter((item) => String(item[0].v).slice(0, 7) === month);
-    const realizedMkd = monthCalculationRows.reduce((sum, item) => sum + item[12].v, 0);
-    const dividendGrossMkd = monthDividendRows.reduce((sum, item) => sum + item[7].v, 0);
-    const tradeTaxBase = monthCalculationRows.filter((item) => item[3] !== "Interest").reduce((sum, item) => sum + item[12].v, 0);
-    const interestTaxBase = monthCalculationRows.filter((item) => item[3] === "Interest").reduce((sum, item) => sum + item[12].v, 0);
-    const dividendTax = monthDividendRows.reduce((sum, item) => sum + item[11].v, 0);
-    const tax = Math.max(tradeTaxBase, 0) * config.securitiesTaxRate / 100 + Math.max(interestTaxBase, 0) * config.interestTaxRate / 100 + dividendTax;
-    const totalFormula = `=SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationFormulaEndRow},7)=A${row})*Calculation!$M$2:$M$${calculationFormulaEndRow})+SUMPRODUCT((LEFT(Dividends!$A$2:$A$${dividendFormulaEndRow},7)=A${row})*Dividends!$H$2:$H$${dividendFormulaEndRow})`;
-    const taxFormula = `=MAX(SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationFormulaEndRow},7)=A${row})*(Calculation!$D$2:$D$${calculationFormulaEndRow}<>"Interest")*Calculation!$M$2:$M$${calculationFormulaEndRow}),0)*10%+MAX(SUMPRODUCT((LEFT(Calculation!$A$2:$A$${calculationFormulaEndRow},7)=A${row})*(Calculation!$D$2:$D$${calculationFormulaEndRow}="Interest")*Calculation!$M$2:$M$${calculationFormulaEndRow}),0)*10%+SUMPRODUCT((LEFT(Dividends!$A$2:$A$${dividendFormulaEndRow},7)=A${row})*Dividends!$L$2:$L$${dividendFormulaEndRow})`;
-    return [month, formula(totalFormula, realizedMkd + dividendGrossMkd), formula(taxFormula, tax)];
+    const calculationDates = `${calculationSheetReference}$A$2:$A$${calculationFormulaEndRow}`;
+    const calculationSymbols = `${calculationSheetReference}$C$2:$C$${calculationFormulaEndRow}`;
+    const calculationAssets = `${calculationSheetReference}$D$2:$D$${calculationFormulaEndRow}`;
+    const calculationMkd = `${calculationSheetReference}$L$2:$L$${calculationFormulaEndRow}`;
+    const sumByAssetFormula = (assetClass) => `SUMPRODUCT((LEFT(${calculationDates},7)=A${row})*(${calculationAssets}="${assetClass}")*${calculationMkd})`;
+    const stocksRows = monthCalculationRows.filter((item) => cellValue(item[3]) === labels.assets.stocks);
+    const optionsRows = monthCalculationRows.filter((item) => cellValue(item[3]) === labels.assets.options);
+    const dividendsRows = monthCalculationRows.filter((item) => cellValue(item[3]) === labels.assets.dividends);
+    const interestRows = monthCalculationRows.filter((item) => cellValue(item[3]) === labels.assets.interest);
+    const stocksPnl = stocksRows.reduce((sum, item) => sum + item[11].v, 0);
+    const optionsPnl = optionsRows.reduce((sum, item) => sum + item[11].v, 0);
+    const dividendsPnl = dividendsRows.reduce((sum, item) => sum + item[11].v, 0);
+    const interestPnl = interestRows.reduce((sum, item) => sum + item[11].v, 0);
+    const securitiesBySymbol = new Map();
+    [...stocksRows, ...optionsRows, ...dividendsRows].forEach((item) => {
+      const sourceSymbol = String(cellValue(item[2]) ?? "");
+      const assetClass = cellValue(item[3]);
+      const readableOption = assetClass === labels.assets.options
+        ? sourceSymbol.match(/^(.+?)\s+\d{1,2}[A-Z]{3}\d{2,4}\s+[\d.]+\s+[CP]$/i)
+        : null;
+      const compactOption = assetClass === labels.assets.options
+        ? sourceSymbol.match(/^(.+?)\s+\d{6}[CP]\d{8}$/i)
+        : null;
+      const optionMatch = readableOption ?? compactOption;
+      const symbol = optionMatch ? optionMatch[1].trim() : sourceSymbol;
+      let group = securitiesBySymbol.get(symbol);
+      if (!group) {
+        group = { amount: 0, sourceSymbols: new Set() };
+        securitiesBySymbol.set(symbol, group);
+      }
+      group.amount += item[11].v;
+      group.sourceSymbols.add(sourceSymbol);
+    });
+    const symbolTaxableFormulas = [...securitiesBySymbol.values()].map((group) => {
+      const symbolConditions = [...group.sourceSymbols]
+        .map((symbol) => `(${calculationSymbols}="${symbol.replaceAll('"', '""')}")`)
+        .join("+");
+      const taxableAssetClasses = [labels.assets.stocks, labels.assets.options, labels.assets.dividends]
+        .map((assetClass) => `(${calculationAssets}="${assetClass}")`)
+        .join("+");
+      return `MAX(0,SUMPRODUCT((LEFT(${calculationDates},7)=A${row})*(${symbolConditions})*(${taxableAssetClasses})*${calculationMkd}))`;
+    });
+    const securitiesTaxablePnl = [...securitiesBySymbol.values()].reduce((sum, group) => sum + Math.max(group.amount, 0), 0);
+    const securitiesTaxableFormula = symbolTaxableFormulas.length > 0 ? `SUM(${symbolTaxableFormulas.join(",")})` : "0";
+    const interestFormula = sumByAssetFormula(labels.assets.interest);
+    const taxablePnl = securitiesTaxablePnl + Math.max(interestPnl, 0);
+    const tax = securitiesTaxablePnl * config.securitiesTaxRate / 100 + Math.max(interestPnl, 0) * config.interestTaxRate / 100;
+    const totalFormula = `=${securitiesTaxableFormula}+MAX(0,${interestFormula})`;
+    const taxFormula = `=${securitiesTaxableFormula}*${config.securitiesTaxRate / 100}+MAX(0,${interestFormula})*${config.interestTaxRate / 100}`;
+    return [
+      month,
+      formula(`=${sumByAssetFormula(labels.assets.stocks)}`, stocksPnl),
+      formula(`=${sumByAssetFormula(labels.assets.options)}`, optionsPnl),
+      formula(`=${sumByAssetFormula(labels.assets.dividends)}`, dividendsPnl),
+      formula(`=${interestFormula}`, interestPnl),
+      formula(totalFormula, taxablePnl),
+      formula(taxFormula, tax),
+    ];
   });
   const totalRow = monthlySummaryRows.length + 3;
+  const summaryTotal = (columnIndex) => monthlySummaryRows.reduce((sum, row) => sum + row[columnIndex].v, 0);
+  const totalTaxCell = formula(`=ROUNDUP(SUM(G3:G${totalRow - 1}),0)`, Math.ceil(summaryTotal(6)));
+  totalTaxCell.z = "#,##0";
   const summaryRows = [
-    ["SUMMARY", "", ""],
-    ["MONTH", "TOTAL REALIZED P/L (MKD)", "TAX"],
+    [labels.summaryTitle, "", "", "", "", "", ""],
+    labels.summaryHeaders,
     ...monthlySummaryRows,
-    ["TOTAL", formula(`=SUM(B3:B${totalRow - 1})`, monthlySummaryRows.reduce((sum, row) => sum + row[1].v, 0)), formula(`=SUM(C3:C${totalRow - 1})`, monthlySummaryRows.reduce((sum, row) => sum + row[2].v, 0))],
+    [labels.summaryTotal, "", "", "", "", "", totalTaxCell],
   ];
+
+  const tradeRows = securities.map((item) => ({
+    assetCategory: item.row[3],
+    symbol: String(item.row[5] ?? ""),
+    date: item.date,
+    rateDate: item.rate.effectiveDate,
+    usdResult: item.usdResult,
+    mkdRate: item.rate.mkdPerUsd,
+    mkdResult: item.mkdResult,
+  })).sort((left, right) => left.date.localeCompare(right.date) || left.symbol.localeCompare(right.symbol));
+  const dividendRows = [...dividendsByKey.values()].filter((item) => item.gross.length > 0).map((item) => {
+    const grossUsd = item.gross.reduce((sum, entry) => sum + entry.amount, 0);
+    const withholdingUsd = item.withholding.reduce((sum, entry) => sum + Math.abs(entry.amount), 0);
+    const grossMkd = grossUsd * item.rate.mkdPerUsd;
+    const withholdingMkd = withholdingUsd * item.rate.mkdPerUsd;
+    return {
+      date: item.date,
+      rateDate: item.rate.effectiveDate,
+      symbol: item.symbol,
+      description: item.description,
+      grossUsd,
+      withholdingUsd,
+      netUsd: grossUsd - withholdingUsd,
+      mkdRate: item.rate.mkdPerUsd,
+      grossMkd,
+      withholdingMkd,
+      netMkd: grossMkd - withholdingMkd,
+    };
+  });
+  const interestRows = interests.map((item) => ({
+    date: item.date,
+    rateDate: item.rate.effectiveDate,
+    usdAmount: item.usdAmount,
+    mkdRate: item.rate.mkdPerUsd,
+    mkdAmount: item.mkdAmount,
+  }));
+  const calculationResult = {
+    transactionCount: tradeRows.length,
+    realizedUsd: tradeRows.reduce((sum, item) => sum + item.usdResult, 0),
+    realizedMkd: tradeRows.reduce((sum, item) => sum + item.mkdResult, 0),
+    taxableIncomeMkd: summaryTotal(5),
+    estimatedTaxMkd: Math.ceil(summaryTotal(6)),
+    monthlySummary: monthlySummaryRows.map((row) => ({
+      month: row[0],
+      stocksMkd: row[1].v,
+      optionsMkd: row[2].v,
+      dividendsMkd: row[3].v,
+      interestMkd: row[4].v,
+      taxablePnlMkd: row[5].v,
+      taxMkd: row[6].v,
+    })),
+    rows: tradeRows,
+    dividends: dividendRows,
+    dividendGrossUsd: dividendRows.reduce((sum, item) => sum + item.grossUsd, 0),
+    dividendWithholdingUsd: dividendRows.reduce((sum, item) => sum + item.withholdingUsd, 0),
+    dividendNetUsd: dividendRows.reduce((sum, item) => sum + item.netUsd, 0),
+    dividendGrossMkd: dividendRows.reduce((sum, item) => sum + item.grossMkd, 0),
+    dividendWithholdingMkd: dividendRows.reduce((sum, item) => sum + item.withholdingMkd, 0),
+    dividendNetMkd: dividendRows.reduce((sum, item) => sum + item.netMkd, 0),
+    interest: interestRows,
+    interestPaidUsd: interestRows.reduce((sum, item) => sum + item.usdAmount, 0),
+    interestPaidMkd: interestRows.reduce((sum, item) => sum + item.mkdAmount, 0),
+    interestIncomeUsd: interestRows.filter((item) => item.usdAmount > 0).reduce((sum, item) => sum + item.usdAmount, 0),
+    interestIncomeMkd: interestRows.filter((item) => item.mkdAmount > 0).reduce((sum, item) => sum + item.mkdAmount, 0),
+    interestChargesUsd: interestRows.filter((item) => item.usdAmount < 0).reduce((sum, item) => sum + item.usdAmount, 0),
+    interestChargesMkd: interestRows.filter((item) => item.mkdAmount < 0).reduce((sum, item) => sum + item.mkdAmount, 0),
+  };
 
   const workbook = XLSX.utils.book_new();
   const original = XLSX.utils.aoa_to_sheet(originalRows);
   const rates = XLSX.utils.aoa_to_sheet(conversionRows);
   const calculation = XLSX.utils.aoa_to_sheet(calculationRows);
-  const dividends = XLSX.utils.aoa_to_sheet([
-    ["DATE", "SYMBOL", "DESCRIPTION", "RATE DATE", "GROSS USD", "WITHHOLDING USD", "MKD PER USD", "GROSS MKD", "TAX RATE", "INCLUDED", "TAXABLE MKD", "ESTIMATED TAX MKD"],
-    ...dividendRows,
-  ]);
   const summary = XLSX.utils.aoa_to_sheet(summaryRows);
   const headerStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F4E78" } }, alignment: { horizontal: "center", vertical: "center" } };
-  const titleStyle = { font: { bold: true, color: { rgb: "FFFFFF" }, sz: 14 }, fill: { fgColor: { rgb: "17365D" } } };
-  const styleHeader = (sheet, row, lastColumn) => {
-    for (let column = 0; column <= lastColumn; column++) {
-      const cell = XLSX.utils.encode_cell({ r: row, c: column });
-      if (sheet[cell]) sheet[cell].s = headerStyle;
-    }
+  const wrappedHeaderStyle = { ...headerStyle, alignment: { ...headerStyle.alignment, wrapText: true } };
+  const summaryTotalStyle = {
+    font: { bold: true, color: { rgb: "123E43" }, sz: 12 },
+    fill: { fgColor: { rgb: "DCEFE6" } },
+    alignment: { vertical: "center" },
+    border: { top: { style: "medium", color: { rgb: "286258" } } },
   };
-  const styleTitle = (sheet, row, lastColumn) => {
+  const summaryTitleStyle = {
+    ...wrappedHeaderStyle,
+    border: { bottom: { style: "medium", color: { rgb: "286258" } } },
+  };
+  const styleHeader = (sheet, row, lastColumn, style = headerStyle) => {
     for (let column = 0; column <= lastColumn; column++) {
       const cell = XLSX.utils.encode_cell({ r: row, c: column });
-      if (sheet[cell]) sheet[cell].s = titleStyle;
+      if (sheet[cell]) sheet[cell].s = style;
     }
   };
   rates["!cols"] = [{ wch: 16 }, { wch: 18 }];
-  calculation["!cols"] = [
-    { wch: 14 }, { wch: 20 }, { wch: 14 }, { wch: 26 }, { wch: 20 }, { wch: 12 }, { wch: 16 }, { wch: 22 }, { wch: 20 }, { wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 22 },
-  ];
-  dividends["!cols"] = [
-    { wch: 14 }, { wch: 14 }, { wch: 34 }, { wch: 14 }, { wch: 16 }, { wch: 19 }, { wch: 15 }, { wch: 16 }, { wch: 12 }, { wch: 11 }, { wch: 16 }, { wch: 20 },
-  ];
+  calculation["!cols"] = calculationRows[0].map((_, column) => ({
+    wch: Math.min(24, Math.max(12, ...calculationRows.slice(1).map((row) => {
+      const cell = row[column];
+      const value = cell && typeof cell === "object" ? cell.v : cell;
+      return String(value ?? "").length;
+    })) + 2),
+  }));
   original["!cols"] = Array.from({ length: Math.max(...originalRows.map((row) => row.length)) }, (_, column) => ({
     wch: Math.min(42, Math.max(12, ...originalRows.map((row) => String(row[column] ?? "").length + 2))),
   }));
   styleHeader(rates, 0, 1);
-  styleHeader(calculation, 0, 12);
-  styleHeader(dividends, 0, 11);
+  styleHeader(calculation, 0, 11, wrappedHeaderStyle);
+  calculation["!rows"] = [{ hpt: 54 }];
   for (let row = 1; row < calculationEndRow; row++) {
     const cell = calculation[XLSX.utils.encode_cell({ r: row, c: 4 })];
     if (cell) cell.s = { alignment: { horizontal: "right" } };
   }
-  styleTitle(summary, 0, 2);
-  styleHeader(summary, 1, 2);
-  summary["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
-  summary["!cols"] = [{ wch: 14 }, { wch: 36 }, { wch: 22 }];
-  calculation["!autofilter"] = { ref: `A1:M${calculationEndRow}` };
+  styleHeader(summary, 0, 6, summaryTitleStyle);
+  styleHeader(summary, 1, 6, wrappedHeaderStyle);
+  summary["!rows"] = [{ hpt: 30 }, { hpt: 54 }];
+  for (let column = 0; column <= 6; column++) {
+    const cell = summary[XLSX.utils.encode_cell({ r: summaryRows.length - 1, c: column })];
+    if (cell) cell.s = summaryTotalStyle;
+  }
+  summary["!rows"][summaryRows.length - 1] = { hpt: 26 };
+  summary["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }];
+  summary["!cols"] = summaryRows[0].map((_, column) => ({
+    wch: Math.min(22, Math.max(12, ...summaryRows.slice(2).map((row) => {
+      const cell = row[column];
+      const value = cell && typeof cell === "object" ? cell.v : cell;
+      return String(value ?? "").length;
+    })) + 2),
+  }));
+  calculation["!autofilter"] = { ref: `A1:L${calculationEndRow}` };
   rates["!autofilter"] = { ref: `A1:B${conversionRows.length}` };
-  dividends["!autofilter"] = { ref: `A1:L${dividendEndRow}` };
-  summary["!autofilter"] = { ref: `A2:C${summaryRows.length}` };
+  summary["!autofilter"] = { ref: `A2:G${summaryRows.length}` };
   calculation["!freeze"] = { xSplit: 0, ySplit: 1 };
   rates["!freeze"] = { xSplit: 0, ySplit: 1 };
-  dividends["!freeze"] = { xSplit: 0, ySplit: 1 };
   summary["!freeze"] = { xSplit: 0, ySplit: 2 };
-  XLSX.utils.book_append_sheet(workbook, original, "Activity Statement");
-  XLSX.utils.book_append_sheet(workbook, rates, "Conversion Rates");
-  XLSX.utils.book_append_sheet(workbook, calculation, "Calculation");
-  XLSX.utils.book_append_sheet(workbook, dividends, "Dividends");
-  XLSX.utils.book_append_sheet(workbook, summary, "Summary");
-  return XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  XLSX.utils.book_append_sheet(workbook, original, labels.sheets.activity);
+  XLSX.utils.book_append_sheet(workbook, rates, labels.sheets.rates);
+  XLSX.utils.book_append_sheet(workbook, calculation, labels.sheets.calculation);
+  XLSX.utils.book_append_sheet(workbook, summary, labels.sheets.summary);
+  return {
+    workbook: XLSX.write(workbook, { bookType: "xlsx", type: "array" }),
+    calculationResult,
+    exchangeRates: fullRates,
+  };
+}
+
+export async function calculateTaxWorkbook(input) {
+  return buildTaxWorkbook(input);
+}
+
+export async function generateTaxWorkbook(input) {
+  return (await buildTaxWorkbook(input)).workbook;
 }

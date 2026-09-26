@@ -14,7 +14,8 @@ if (!inputPath || args.includes("--help")) {
 
 Options:
   --output <file.xlsx>       Output workbook path
-  --rates-api <url>          Exchange-rate endpoint (default: http://localhost:8080/api/tax/exchange-rates)`);
+  --rates-api <url>          Exchange-rate endpoint (default: http://localhost:8080/api/tax/exchange-rates)
+  --language <en|mk>         Workbook language (default: en)`);
   process.exit(args.includes("--help") ? 0 : 1);
 }
 
@@ -22,9 +23,12 @@ const resolvedInput = path.resolve(process.cwd(), inputPath);
 if (!fs.existsSync(resolvedInput)) throw new Error(`Input file not found: ${resolvedInput}`);
 
 const exchangeRatesApi = option("rates-api", process.env.TAX_RATES_API_URL ?? "http://localhost:8080/api/tax/exchange-rates");
+const language = option("language", "en");
+if (!new Set(["en", "mk"]).has(language)) throw new Error("Workbook language must be 'en' or 'mk'.");
 const workbook = await generateTaxWorkbook({
   csvText: fs.readFileSync(resolvedInput, "utf8"),
   exchangeRatesApi,
+  language,
 });
 
 const defaultOutput = path.join(path.dirname(resolvedInput), `${path.basename(resolvedInput, path.extname(resolvedInput))}-tax-workpaper.xlsx`);

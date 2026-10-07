@@ -40,7 +40,7 @@ cd TaxCalculator
 bash scripts/aws-dev.sh bootstrap --region eu-central-1
 ```
 
-CloudShell already supplies AWS credentials, AWS CLI, Git, and jq. The signed-in AWS identity needs permission to create the CloudFormation resources, including IAM roles/OIDC, EC2/VPC, ECR, S3, and CloudFront. Bootstrap can take several minutes, especially CloudFront. It prints your actual role ARN, stack name, region, and HTTPS URL. The URL starts working after the first application release.
+CloudShell already supplies AWS credentials, AWS CLI, Git, and jq. The signed-in AWS identity needs permission to create the CloudFormation resources, including IAM roles/OIDC, EC2/VPC, ECR, S3, and CloudFront, plus `cloudfront:GetCachePolicy` and `cloudfront:GetOriginRequestPolicy` for the preflight checks. Bootstrap verifies the template's managed CloudFront policies before provisioning billable resources. It can take several minutes, especially CloudFront. It prints your actual role ARN, stack name, region, and HTTPS URL. The URL starts working after the first application release.
 
 Bootstrap detects an existing GitHub OIDC provider and reuses it. If this stack created the provider, a subsequent bootstrap preserves that ownership rather than removing its resource.
 
@@ -53,6 +53,24 @@ In GitHub repository settings:
 The trust policy expects GitHub's standard subject `repo:jovanjakimovski/TaxCalculator:environment:dev`. If your organization enabled a custom or immutable OIDC subject, adapt that policy to your repository's actual token subject before deployment. Never broaden it to all repositories.
 
 The public development URL intentionally requires no application login. Anyone with its URL can use the free workspace. Keep this environment for testing and avoid advertising it as the paid production service.
+
+## Recover a failed initial stack creation
+
+If initial creation rolled back, wait until **taxcalculator-dev** reaches `ROLLBACK_COMPLETE` in the Frankfurt CloudFormation console. That state supports deletion, not an update; see [AWS stack status codes](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/view-stack-events.html). Delete only this failed dev stack, then recreate it with the updated checkout:
+
+```bash
+cd ~/TaxCalculator
+git pull --ff-only
+aws cloudformation describe-stacks --stack-name taxcalculator-dev --region eu-central-1 --query 'Stacks[0].StackStatus' --output text
+# Continue only after the command above shows ROLLBACK_COMPLETE.
+aws cloudformation delete-stack --stack-name taxcalculator-dev --region eu-central-1
+aws cloudformation wait stack-delete-complete --stack-name taxcalculator-dev --region eu-central-1
+bash scripts/aws-dev.sh bootstrap --region eu-central-1
+```
+
+The failed stack may retain its S3 release bucket and GitHub OIDC provider. The next bootstrap detects and reuses that provider, so keep it. A new release bucket is created; the retained old bucket can be inspected separately after the new stack succeeds. The existing production EC2 instance is outside this dev stack.
+
+The original CloudFront creation error, `The specified cache policy does not exist`, came from an incorrect managed policy ID in the initial template. The corrected ID is the [AWS-documented CachingDisabled policy](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html#managed-cache-policy-caching-disabled): `4135ea2d-6df8-44a3-9df3-4b5a84be39ad`. A cancelled `GitHubDeployRole` creation in the same rollback is a consequence of the distribution failure, rather than evidence of an IAM configuration failure.
 
 ## Updates, rollback and operating cost
 

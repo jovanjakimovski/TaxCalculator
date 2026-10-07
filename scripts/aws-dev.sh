@@ -61,12 +61,33 @@ send_command() {
 }
 case "$action" in
   bootstrap)
+    existing_stack="$(aws cloudformation describe-stacks --stack-name "$stack_name" 2>/dev/null || true)"
+    if [[ -n "$existing_stack" ]]; then
+      stack_status="$(jq -er '.Stacks[0].StackStatus' <<< "$existing_stack")"
+      case "$stack_status" in
+        ROLLBACK_COMPLETE)
+          echo "The failed creation of $stack_name has rolled back. CloudFormation cannot update this state." >&2
+          echo "Delete only this failed dev stack, wait for deletion, then retry bootstrap. See DEV_DEPLOY.md recovery steps." >&2
+          exit 1 ;;
+        *_IN_PROGRESS)
+          echo "$stack_name is $stack_status. Wait for that operation to finish before bootstrap." >&2
+          exit 1 ;;
+        ROLLBACK_FAILED|DELETE_FAILED|UPDATE_ROLLBACK_FAILED)
+          echo "$stack_name is $stack_status. Resolve its failed resources in CloudFormation before bootstrap." >&2
+          exit 1 ;;
+      esac
+    fi
+    # cfn-lint validates syntax, but cannot confirm that external managed IDs exist.
+    # Verify both policies before provisioning billable infrastructure.
+    cache_policy_id="$(awk '$1 == "CachePolicyId:" {print $2; exit}' infra/dev-stack.yaml)"
+    origin_policy_id="$(awk '$1 == "OriginRequestPolicyId:" {print $2; exit}' infra/dev-stack.yaml)"
+    aws cloudfront get-cache-policy --id "$cache_policy_id" --query CachePolicy.CachePolicyConfig.Name --output text >/dev/null
+    aws cloudfront get-origin-request-policy --id "$origin_policy_id" --query OriginRequestPolicy.OriginRequestPolicyConfig.Name --output text >/dev/null
     prefix_list="$(aws ec2 describe-managed-prefix-lists --filters Name=prefix-list-name,Values=com.amazonaws.global.cloudfront.origin-facing --query 'PrefixLists[0].PrefixListId' --output text)"
     [[ "$prefix_list" =~ ^pl-[a-f0-9]+$ ]] || { echo "CloudFront origin prefix list is unavailable in $region" >&2; exit 1; }
     provider_arn="$(aws iam list-open-id-connect-providers --query "OpenIDConnectProviderList[?ends_with(Arn, 'oidc-provider/token.actions.githubusercontent.com')].Arn | [0]" --output text)"
     [[ "$provider_arn" == None ]] && provider_arn=""
     # Keep a provider created by this stack inside the template on later updates.
-    existing_stack="$(aws cloudformation describe-stacks --stack-name "$stack_name" 2>/dev/null || true)"
     if [[ -n "$existing_stack" ]]; then
       provider_arn="$(jq -r '.Stacks[0].Parameters[] | select(.ParameterKey == "ExistingGitHubOidcProviderArn") | .ParameterValue' <<< "$existing_stack")"
     fi

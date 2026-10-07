@@ -46,11 +46,19 @@ Bootstrap detects an existing GitHub OIDC provider and reuses it. If this stack 
 
 In GitHub repository settings:
 
-1. Create an environment named **dev** and restrict its deployment branches to **main**.
+1. Under **Settings → Environments**, create an environment named **dev**. Set **Deployment branches and tags → Selected branches and tags**, then add the branch **main**. Leave required reviewers and wait timers unset for fully automatic dev deployments.
 2. Under **Secrets and variables → Actions → Variables**, add the three repository variables printed by bootstrap: `AWS_DEV_ROLE_ARN`, `AWS_DEV_REGION`, `AWS_DEV_STACK_NAME`. These values are identifiers, not passwords.
 3. Under **Actions → Deploy development app → Run workflow**, select **main** and run it. Later pushes to main deploy automatically after checks pass. Without the role variable, CI runs and the AWS deploy job skips.
 
-The trust policy expects GitHub's standard subject `repo:jovanjakimovski/TaxCalculator:environment:dev`. If your organization enabled a custom or immutable OIDC subject, adapt that policy to your repository's actual token subject before deployment. Never broaden it to all repositories.
+This public repository uses GitHub OIDC with temporary AWS credentials. No AWS access key, secret key, SSH key, or database password belongs in repository files or Actions variables. The three `AWS_DEV_*` variables are identifiers, not credentials. Pull requests and forks run verification; deployment runs only from this repository's `main` branch after verification passes. Only the deployment job requests an OIDC token.
+
+The AWS trust policy is pinned to this repository's immutable GitHub IDs and the `dev` environment: `repo:jovanjakimovski@37625509/TaxCalculator@1375243563:environment:dev`. GitHub defaults to this format for repositories created after July 15, 2026; this repository was created on September 18, 2026. See [GitHub's immutable OIDC subjects](https://docs.github.com/en/actions/reference/security/oidc#immutable-subject-claims). For another repository, change `GitHubRepository`, `GitHubOwnerId`, and `GitHubRepositoryId` to its actual values. If an organization customizes its OIDC subject, adapt the policy to the actual token subject. Never broaden trust to all repositories.
+
+If infrastructure was created with the earlier name-only trust policy, pull the latest code in CloudShell and rerun `bash scripts/aws-dev.sh bootstrap --region eu-central-1` to update it before deploying. CloudFormation infrastructure changes still require bootstrap; routine application pushes update the containers automatically.
+
+Protect `main` with a GitHub branch rule/ruleset so changes reach it through reviewed pull requests and passing verification. Review workflow changes as code, since trusted workflows can deploy to AWS. For this dev setup, verification jobs have a 20-minute limit so a stalled dependency download fails instead of blocking deployments for hours.
+
+Check deployment progress under **Actions → Deploy development app**. If an older run is still stuck in Playwright installation from before these limits were added, cancel that older run in Actions so the queued newest run can proceed. If deployment is skipped, check that `AWS_DEV_ROLE_ARN` was added as a **repository** variable, and that the selected branch is `main`. If AWS rejects OIDC authentication, first rerun bootstrap with this updated template and verify the environment name is exactly `dev`.
 
 The public development URL intentionally requires no application login. Anyone with its URL can use the free workspace. Keep this environment for testing and avoid advertising it as the paid production service.
 

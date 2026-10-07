@@ -3,12 +3,17 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import XLSX from "xlsx-js-style";
 import { calculateTaxWorkbook } from "./taxWorkbook.mjs";
-it("preserves the existing generator byte for byte", () => {
+it("preserves the existing generator apart from checkout line endings", () => {
   expect(
     createHash("sha256")
-      .update(readFileSync(new URL("./taxWorkbook.mjs", import.meta.url)))
+      .update(
+        readFileSync(
+          new URL("./taxWorkbook.mjs", import.meta.url),
+          "utf8",
+        ).replaceAll("\r\n", "\n"),
+      )
       .digest("hex"),
-  ).toBe("a409b8f61ce1dc9eddb767a5808452bfa92943ca240cbe27da643be58f4af93f");
+  ).toBe("2e3885a9a7fa8808918790546e935cc45a46702ecaee22c6f7fa15a093fe6e17");
 });
 it("keeps the current monthly offset and 10% workbook results", async () => {
   const csvText = readFileSync(

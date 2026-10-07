@@ -53,11 +53,17 @@ describe("statement preflight", () => {
   });
   it("accepts BOM while refusing multiline fields and excessive ranges", () => {
     expect(inspectStatement("\uFEFF" + sample).errors).toEqual([]);
-    expect(() =>
-      inspectStatement(
-        sample.replace("USD credit interest", "USD\ncredit interest"),
-      ),
-    ).toThrow();
+    for (const newline of ["\n", "\r\n"]) {
+      const fixture = sample.replaceAll("\r\n", "\n").replaceAll("\n", newline);
+      expect(() =>
+        inspectStatement(
+          fixture.replace(
+            "USD credit interest",
+            `"USD${newline}credit interest"`,
+          ),
+        ),
+      ).toThrow(/Multiline/);
+    }
     expect(() =>
       inspectStatement(
         sample.replace("February 28, 2025", "February 28, 2026"),

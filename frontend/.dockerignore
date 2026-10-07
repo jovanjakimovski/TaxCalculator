@@ -3,3 +3,6 @@ dist
 coverage
 *.tsbuildinfo
 npm-debug.log*
+test-results
+playwright-report
+e2e

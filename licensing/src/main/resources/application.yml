@@ -1,0 +1,31 @@
+server:
+  port: ${PORT:8081}
+spring:
+  datasource:
+    url: ${LICENSE_DATABASE_URL:jdbc:postgresql://localhost:5433/license}
+    username: ${LICENSE_DATABASE_USERNAME:license}
+    password: ${LICENSE_DATABASE_PASSWORD:license-local-only}
+    hikari:
+      connection-timeout: 10000
+      validation-timeout: 3000
+  jdbc:
+    template:
+      query-timeout: 10s
+  flyway:
+    enabled: true
+license:
+  test-mode: ${LICENSE_TEST_MODE:false}
+  test-code: ${LICENSE_TEST_CODE:}
+  test-credits: ${LICENSE_TEST_CREDITS:3}
+  lemon-squeezy-api-key: ${LEMON_SQUEEZY_API_KEY:}
+  lemon-squeezy-store-id: ${LEMON_SQUEEZY_STORE_ID:}
+  lemon-squeezy-variant-id: ${LEMON_SQUEEZY_VARIANT_ID:}
+  lemon-squeezy-variant-two-id: ${LEMON_SQUEEZY_VARIANT_TWO_ID:}
+  lemon-squeezy-variant-three-id: ${LEMON_SQUEEZY_VARIANT_THREE_ID:}
+  lemon-squeezy-webhook-secret: ${LEMON_SQUEEZY_WEBHOOK_SECRET:}
+  payment-test-mode: ${PAYMENT_TEST_MODE:false}
+  app-url: ${APP_PUBLIC_URL:http://localhost:8080}
+  cognito-issuer-uri: ${COGNITO_ISSUER_URI:}
+  cognito-app-client-id: ${COGNITO_APP_CLIENT_ID:}
+  allow-anonymous-checkout: ${LICENSE_ALLOW_ANONYMOUS_CHECKOUT:false}
+  require-account-auth: ${LICENSE_REQUIRE_ACCOUNT_AUTH:false}

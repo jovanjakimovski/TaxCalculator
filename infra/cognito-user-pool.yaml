@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Cognito user pool and public OIDC app client for TaxCalculator account-based report credits.
+
+Parameters:
+  UserPoolDomainPrefix:
+    Type: String
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern: '^[a-z0-9-]+$'
+    Description: Globally unique Cognito hosted UI domain prefix in the selected AWS region.
+  CallbackUrls:
+    Type: CommaDelimitedList
+    Default: http://localhost:8080/auth/callback
+    Description: Exact sign-in callback URLs. Add the HTTPS production callback before deployment.
+  LogoutUrls:
+    Type: CommaDelimitedList
+    Default: http://localhost:8080/
+    Description: Exact post-logout URLs. Add the HTTPS production URL before deployment.
+
+Resources:
+  TaxCalculatorUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: taxcalculator-accounts
+      DeletionProtection: ACTIVE
+      UsernameAttributes:
+        - email
+      # New pools only: Cognito cannot change this setting on an existing pool.
+      UsernameConfiguration:
+        CaseSensitive: false
+      AutoVerifiedAttributes:
+        - email
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 1
+  TaxCalculatorAppClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref TaxCalculatorUserPool
+      ClientName: taxcalculator-web
+      GenerateSecret: false
+      EnableTokenRevocation: true
+      PreventUserExistenceErrors: ENABLED
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - openid
+        - email
+        - profile
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs: !Ref CallbackUrls
+      LogoutURLs: !Ref LogoutUrls
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+  TaxCalculatorUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref UserPoolDomainPrefix
+      UserPoolId: !Ref TaxCalculatorUserPool
+
+Outputs:
+  UserPoolId:
+    Value: !Ref TaxCalculatorUserPool
+  AppClientId:
+    Value: !Ref TaxCalculatorAppClient
+  IssuerUri:
+    Value: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${TaxCalculatorUserPool}'
+  HostedUiAuthority:
+    Value: !Sub 'https://${UserPoolDomainPrefix}.auth.${AWS::Region}.amazoncognito.com'

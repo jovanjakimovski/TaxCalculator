@@ -1,0 +1,270 @@
+.signin-page {
+  background: #eff7ff;
+  padding: 35px 0 70px;
+  min-height: 78vh;
+}
+.signin-grid {
+  display: grid;
+  grid-template-columns: 1.12fr 1fr;
+  gap: 85px;
+  align-items: start;
+  padding: 10px 0 25px;
+}
+.signin-copy h1 {
+  font-size: clamp(2rem, 3vw, 2.75rem);
+  max-width: 480px;
+  line-height: 1.15;
+}
+.signin-lead {
+  color: #466277;
+  font-size: 1rem;
+  max-width: 520px;
+}
+.account-benefits {
+  display: grid;
+  gap: 24px;
+  margin-top: 30px;
+}
+.account-benefits article {
+  display: flex;
+  gap: 18px;
+}
+.account-benefits article > span {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border: 1px solid #c5def1;
+  border-radius: 10px;
+  color: #0066d4;
+  font-size: 0.72rem;
+  font-weight: 800;
+  background: #ffffff90;
+}
+.account-benefits h2 {
+  font-size: 1rem;
+  margin: 0 0 7px;
+}
+.account-benefits p {
+  color: #526b7d;
+  font-size: 0.86rem;
+  margin: 0;
+}
+.signin-free-note {
+  border-top: 1px solid #d4e3ed;
+  padding-top: 22px;
+  margin-top: 30px;
+  max-width: 520px;
+}
+.signin-card {
+  padding: 36px;
+  border-color: #d1e3f0;
+  box-shadow: 0 15px 45px #173f6010;
+}
+.signin-envelope {
+  display: grid;
+  place-items: center;
+  width: 55px;
+  height: 55px;
+  font-size: 1.7rem;
+  font-weight: 600;
+  background: #e6f2ff;
+  color: #0067d9;
+  border-radius: 16px;
+  margin-bottom: 24px;
+}
+.signin-card h2 {
+  font-size: 1.45rem;
+  margin-bottom: 14px;
+}
+.signin-card > p {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.signin-card > .button {
+  margin-top: 8px;
+}
+.signin-card .signin-next-screen {
+  font-size: 0.77rem;
+  text-align: center;
+  margin: 15px 0 22px;
+}
+.signin-card .signin-security {
+  font-size: 0.77rem;
+  color: #2d6852;
+  margin-bottom: 0;
+}
+.signin-unavailable {
+  border: 1px solid #e0e9f0;
+  padding: 16px 18px;
+  border-radius: 10px;
+  background: #f7fafc;
+}
+.signin-unavailable strong {
+  font-size: 0.81rem;
+}
+.signin-unavailable p {
+  font-size: 0.78rem;
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+.signin-card .signin-draft-note {
+  padding-top: 18px;
+  border-top: 1px solid #e1eaf1;
+  margin: 22px 0 0;
+  font-size: 0.78rem;
+}
+.signin-test-access {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid #e1eaf1;
+  padding-top: 20px;
+  margin-top: 24px;
+}
+.signin-test-access > span {
+  font-size: 0.73rem;
+  color: var(--muted);
+}
+.signin-test-access .text-button {
+  justify-self: start;
+  padding: 2px 0;
+  font-size: 0.8rem;
+  color: #005cbc;
+}
+.signin-test-access small {
+  font-size: 0.7rem;
+}
+.local-test-strip {
+  background: #f3f7fb;
+  border-bottom: 1px solid #e4ebf1;
+}
+.local-test-strip .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.local-test-strip p {
+  margin: 0;
+  color: #5c6d7c;
+  font-size: 0.69rem;
+}
+.local-test-strip p strong {
+  color: #35526b;
+  margin-right: 8px;
+}
+.local-test-strip .text-button {
+  font-size: 0.73rem;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.local-test-strip .credit-badge {
+  height: 20px;
+  min-width: 20px;
+  font-size: 0.65rem;
+}
+.account-storage-note {
+  margin-bottom: 26px;
+  border: 1px solid #d6e5ef;
+  background: #f5fbff;
+  border-radius: 12px;
+  padding: 18px 22px;
+}
+.account-storage-note h2 {
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+.account-storage-note p {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0;
+}
+.preview-account-step {
+  border: 1px solid #c8def2;
+  padding: 16px 18px;
+  border-radius: 11px;
+  background: #eaf4ff;
+  margin-bottom: 20px;
+}
+.preview-account-step p {
+  font-size: 0.84rem;
+  color: #3e5a70;
+  margin-bottom: 13px;
+}
+@media (max-width: 1050px) {
+  .signin-grid {
+    gap: 40px;
+  }
+  .signin-card {
+    padding: 29px;
+  }
+}
+@media (max-width: 760px) {
+  .signin-page {
+    padding-top: 25px;
+    padding-bottom: 45px;
+  }
+  .signin-grid {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+  .signin-copy {
+    display: contents;
+  }
+  .signin-copy > .eyebrow {
+    order: 0;
+    margin-bottom: -8px;
+  }
+  .signin-copy h1 {
+    order: 1;
+    font-size: 2rem;
+    margin-bottom: 0;
+  }
+  .signin-lead {
+    order: 2;
+    font-size: 0.94rem;
+    margin-bottom: 0;
+  }
+  .account-benefits {
+    order: 4;
+    gap: 20px;
+    margin-top: 7px;
+  }
+  .account-benefits article {
+    gap: 14px;
+  }
+  .account-benefits p {
+    font-size: 0.82rem;
+  }
+  .signin-card {
+    order: 3;
+    padding: 26px;
+  }
+  .local-test-strip .container {
+    gap: 12px;
+  }
+  .local-test-strip p {
+    font-size: 0.6rem;
+  }
+  .local-test-strip p > span {
+    display: none;
+  }
+  .local-test-strip .text-button {
+    font-size: 0.67rem;
+  }
+  .signin-free-note {
+    order: 5;
+    margin-bottom: 0;
+  }
+}
+@media print {
+  .local-test-strip {
+    display: none !important;
+  }
+}

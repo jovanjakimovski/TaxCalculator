@@ -1,0 +1,441 @@
+.calculation-guide {
+  color: var(--ink, #112b45);
+}
+.guide-intro {
+  max-width: 760px;
+}
+.guide-intro h2 {
+  margin: 12px 0;
+  font-size: clamp(1.7rem, 3vw, 2.35rem);
+  line-height: 1.15;
+}
+.guide-intro p {
+  color: #45617b;
+  line-height: 1.7;
+}
+.guide-flow {
+  list-style: none;
+  padding: 0;
+  margin: 28px 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.guide-flow li {
+  padding: 20px;
+  border: 1px solid #cce2f0;
+  border-radius: 18px;
+  background: #eff8fe;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.guide-flow li > span {
+  color: #0074ed;
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+.guide-flow strong {
+  line-height: 1.35;
+}
+.guide-flow small {
+  color: #45617b;
+  line-height: 1.5;
+}
+.guide-chapters {
+  display: grid;
+  gap: 12px;
+}
+.guide-chapters > details {
+  border: 1px solid #d7e3ed;
+  border-radius: 18px;
+  background: #fff;
+  overflow: hidden;
+}
+.guide-chapters > details > summary {
+  position: relative;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  padding: 20px 48px 20px 22px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+.guide-chapters > details > summary::-webkit-details-marker {
+  display: none;
+}
+.guide-chapters > details > summary::after {
+  content: "+";
+  position: absolute;
+  right: 22px;
+  font-size: 1.4rem;
+  color: #0074ed;
+  font-weight: 500;
+}
+.guide-chapters > details[open] > summary::after {
+  content: "−";
+}
+.guide-chapters > details > summary:hover {
+  background: #f3f9ff;
+}
+.guide-chapters > details > summary:focus-visible {
+  outline: 3px solid #0074ed;
+  outline-offset: -3px;
+  border-radius: 16px;
+}
+.guide-chapter-number {
+  color: #0074ed;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.guide-chapter-body {
+  padding: 0 22px 24px;
+  line-height: 1.7;
+}
+.guide-chapter-body p {
+  margin: 0 0 16px;
+  color: #45617b;
+}
+.guide-chapter-body h3 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+}
+.guide-two-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.guide-equation {
+  border-radius: 16px;
+  background: #eff8fe;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 20px 0;
+}
+.guide-equation > span {
+  display: grid;
+  gap: 5px;
+  font-size: 0.8rem;
+  color: #45617b;
+}
+.guide-equation strong {
+  font-size: clamp(1.15rem, 2vw, 1.65rem);
+  color: #112b45;
+}
+.guide-equation > b {
+  font-size: 1.4rem;
+  color: #0074ed;
+}
+.guide-example {
+  border: 1px solid #b7d8ee;
+  background: #f3faff;
+  padding: 22px;
+  border-radius: 18px;
+  margin: 22px 0;
+}
+.guide-example-heading .tag {
+  margin-bottom: 12px;
+  font-size: 0.68rem;
+  white-space: normal;
+}
+.guide-example-heading h3 {
+  font-size: 1.2rem;
+  max-width: 540px;
+}
+.guide-scenario-label {
+  display: grid;
+  gap: 6px;
+  max-width: 420px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.guide-scenario-label select {
+  width: 100%;
+  color: #112b45;
+  background: #fff;
+  border: 1px solid #b5cede;
+  border-radius: 12px;
+  padding: 12px;
+  font: inherit;
+  font-size: 0.9rem;
+}
+.guide-example-result {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.guide-example-result > div {
+  border-radius: 14px;
+  background: #fff;
+  padding: 16px;
+  display: grid;
+  gap: 5px;
+}
+.guide-example-result small {
+  color: #45617b;
+  line-height: 1.4;
+}
+.guide-example-result strong {
+  color: #006bdc;
+  font-size: 1.7rem;
+}
+.guide-chapter-body .guide-callout {
+  padding: 16px 18px;
+  background: #fffbe0;
+  border-left: 3px solid #f3d82b;
+  border-radius: 0 12px 12px 0;
+  color: #394b5e;
+}
+.guide-mini-equation,
+.guide-formula {
+  padding: 18px;
+  border-radius: 14px;
+  background: #eff8fe;
+  font-weight: 700;
+}
+.guide-mini-equation small {
+  display: block;
+  color: #45617b;
+  font-weight: 400;
+  margin-top: 8px;
+  line-height: 1.6;
+}
+.guide-chapter-body .guide-small {
+  font-size: 0.8rem;
+}
+.guide-actual-total {
+  background: #0074ed;
+  color: #fff;
+  border-radius: 14px;
+  padding: 18px;
+  margin: 20px 0;
+}
+.guide-actual-total > span {
+  font-size: 0.75rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+.guide-actual-total p {
+  color: #fff;
+  margin: 6px 0 0;
+}
+.guide-sample-breakdown {
+  border: 1px dashed #a6cbe5;
+  border-radius: 14px;
+  padding: 20px;
+  margin: 20px 0 0;
+}
+.guide-sample-breakdown small {
+  font-size: 0.8rem;
+  color: #45617b;
+}
+.guide-workbook-sheets {
+  margin: 0;
+}
+.guide-workbook-sheets dt {
+  font-size: 0.85rem;
+  font-weight: 750;
+  margin-top: 12px;
+}
+.guide-workbook-sheets dd {
+  color: #45617b;
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+}
+.guide-filing-steps {
+  list-style: none;
+  counter-reset: guide-filing;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  margin: 24px 0 0;
+}
+.guide-filing-steps li {
+  counter-increment: guide-filing;
+  position: relative;
+  display: grid;
+  gap: 3px;
+  padding: 16px 16px 16px 58px;
+  border: 1px solid #d7e3ed;
+  border-radius: 14px;
+}
+.guide-filing-steps li::before {
+  content: counter(guide-filing);
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #0074ed;
+  background: #e5f3fd;
+  font-weight: 750;
+}
+.guide-filing-steps li span {
+  color: #45617b;
+  font-size: 0.9rem;
+}
+.report-context {
+  color: #45617b;
+  line-height: 1.7;
+  max-width: 900px;
+  margin: 0 0 22px;
+}
+.report-total-explainer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 24px 0;
+  padding: 20px;
+  background: #eff8fe;
+  border-radius: 16px;
+}
+.report-total-explainer > div {
+  display: grid;
+  gap: 5px;
+}
+.report-total-explainer > div > span {
+  font-size: 0.8rem;
+  color: #45617b;
+}
+.report-total-explainer > div > strong {
+  font-size: 1.15rem;
+}
+.report-total-explainer > b {
+  font-weight: 400;
+  color: #0074ed;
+}
+.report-total-explainer > button {
+  margin-left: auto;
+}
+.report-section-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+.monthly-audit {
+  border: 1px solid #b9d9ed;
+  border-radius: 16px;
+  margin-top: 24px;
+  background: #f6fbff;
+}
+.monthly-audit > summary {
+  cursor: pointer;
+  padding: 18px;
+  font-weight: 750;
+  line-height: 1.5;
+}
+.monthly-audit-body {
+  padding: 0 18px 18px;
+}
+.monthly-audit-body > label {
+  display: grid;
+  gap: 5px;
+  max-width: 240px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin: 12px 0 18px;
+}
+.monthly-audit-body select {
+  padding: 10px;
+  border: 1px solid #b5cede;
+  border-radius: 10px;
+  background: #fff;
+  color: #112b45;
+  font: inherit;
+}
+.monthly-audit-body > p {
+  color: #45617b;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+.monthly-audit-total {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin-top: 16px;
+}
+.monthly-audit-total > span {
+  color: #45617b;
+  font-size: 0.85rem;
+}
+.monthly-audit-total strong {
+  color: #112b45;
+}
+@media (max-width: 800px) {
+  .guide-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .guide-two-columns {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 480px) {
+  .guide-flow li {
+    padding: 14px;
+    border-radius: 14px;
+  }
+  .guide-chapters > details > summary {
+    padding-left: 16px;
+    gap: 9px;
+    font-size: 0.93rem;
+  }
+  .guide-chapter-body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .guide-example {
+    padding: 16px;
+  }
+  .guide-example-result {
+    grid-template-columns: 1fr;
+  }
+  .guide-equation {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    padding: 14px;
+  }
+  .guide-equation > span {
+    flex: 1 1 100px;
+  }
+  .guide-equation > span:last-child {
+    flex-basis: 100%;
+  }
+  .report-total-explainer > button {
+    margin-left: 0;
+  }
+}
+@media print {
+  #methodology,
+  .monthly-audit,
+  .report-section-links,
+  .report-total-explainer > button {
+    display: none !important;
+  }
+  .report-context,
+  .report-export-help,
+  .report-total-explainer {
+    display: none !important;
+  }
+  .report-total-explainer {
+    padding: 10px;
+    margin: 12px 0;
+    gap: 10px;
+    break-inside: avoid;
+  }
+  .report-context {
+    color: #333;
+    font-size: 9pt;
+    margin-bottom: 12px;
+  }
+}

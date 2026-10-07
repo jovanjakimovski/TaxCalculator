@@ -4,6 +4,9 @@ spring:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/taxcalculator}
     username: ${DATABASE_USERNAME:taxcalculator}
     password: ${DATABASE_PASSWORD:taxcalculator}
+    hikari:
+      connection-timeout: 10000
+      validation-timeout: 3000
   jpa:
     hibernate.ddl-auto: validate
     open-in-view: false
@@ -11,4 +14,3 @@ spring:
     default-property-inclusion: non_null
 server:
   port: ${PORT:8080}
-

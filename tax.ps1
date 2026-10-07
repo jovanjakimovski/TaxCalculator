@@ -34,14 +34,16 @@ function Get-AppUrl {
 }
 
 function Wait-ForApi([string]$appUrl) {
-  $probeUrl = "$appUrl/api/tax/realized-gains"
+  $probeUrl = "$appUrl/api/tax/health"
+  $licenseProbeUrl = "$appUrl/api/license/health"
   for ($attempt = 0; $attempt -lt 45; $attempt++) {
     try {
       $response = Invoke-WebRequest -Uri $probeUrl -Method Get -TimeoutSec 3 -UseBasicParsing
-      if ($response.StatusCode -eq 405) { return }
+      if ($response.StatusCode -eq 200) {
+        $licenseResponse = Invoke-WebRequest -Uri $licenseProbeUrl -Method Get -TimeoutSec 3 -UseBasicParsing
+        if ($licenseResponse.StatusCode -eq 200) { return }
+      }
     } catch {
-      $response = $_.Exception.Response
-      if ($response -and [int]$response.StatusCode -eq 405) { return }
     }
     Start-Sleep -Seconds 2
   }

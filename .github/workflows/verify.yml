@@ -1,0 +1,47 @@
+name: Verify application
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build && npm test && npm audit --audit-level=high
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:e2e
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: browser-test-results, path: frontend/test-results, retention-days: 7 }
+  java:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: { project: [backend, licensing] }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21, cache: maven }
+      - run: mvn -B verify -Pintegration
+        working-directory: ${{ matrix.project }}
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose build
+      - run: docker compose up -d
+      - run: |
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://localhost:8080/api/license/config && curl --fail --silent http://localhost:8080/api/tax/health; then exit 0; fi
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+      - if: always()
+        run: docker compose down

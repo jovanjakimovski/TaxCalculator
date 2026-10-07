@@ -16,6 +16,23 @@ services:
       timeout: 5s
       retries: 10
 
+  license-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: license
+      POSTGRES_USER: license
+      POSTGRES_PASSWORD: ${LICENSE_DB_PASSWORD:-license-local-only}
+    ports:
+      - "127.0.0.1:${LICENSE_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - license_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U license -d license"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build: ./backend
     restart: unless-stopped
@@ -26,20 +43,57 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/taxcalculator
       DATABASE_USERNAME: taxcalculator
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-taxcalculator}
-      TAXCALCULATOR_CORS_ORIGIN: ${TAXCALCULATOR_CORS_ORIGIN:-http://localhost:${APP_PORT:-8080}}
       PORT: 8080
+
+  license-api:
+    build: ./licensing
+    restart: unless-stopped
+    depends_on:
+      license-postgres:
+        condition: service_healthy
+    environment:
+      LICENSE_DATABASE_URL: jdbc:postgresql://license-postgres:5432/license
+      LICENSE_DATABASE_USERNAME: license
+      LICENSE_DATABASE_PASSWORD: ${LICENSE_DB_PASSWORD:-license-local-only}
+      LICENSE_TEST_MODE: ${LICENSE_TEST_MODE:-true}
+      LICENSE_TEST_CODE: ${LICENSE_TEST_CODE:-LOCAL-TEST-CODE}
+      LICENSE_TEST_CREDITS: ${LICENSE_TEST_CREDITS:-3}
+      LEMON_SQUEEZY_API_KEY: ${LEMON_SQUEEZY_API_KEY:-}
+      LEMON_SQUEEZY_STORE_ID: ${LEMON_SQUEEZY_STORE_ID:-}
+      LEMON_SQUEEZY_VARIANT_ID: ${LEMON_SQUEEZY_VARIANT_ID:-}
+      LEMON_SQUEEZY_VARIANT_TWO_ID: ${LEMON_SQUEEZY_VARIANT_TWO_ID:-}
+      LEMON_SQUEEZY_VARIANT_THREE_ID: ${LEMON_SQUEEZY_VARIANT_THREE_ID:-}
+      LEMON_SQUEEZY_WEBHOOK_SECRET: ${LEMON_SQUEEZY_WEBHOOK_SECRET:-}
+      PAYMENT_TEST_MODE: ${PAYMENT_TEST_MODE:-true}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:${APP_PORT:-8080}}
+      COGNITO_ISSUER_URI: ${COGNITO_ISSUER_URI:-}
+      COGNITO_APP_CLIENT_ID: ${COGNITO_APP_CLIENT_ID:-}
+      LICENSE_ALLOW_ANONYMOUS_CHECKOUT: ${LICENSE_ALLOW_ANONYMOUS_CHECKOUT:-true}
+      LICENSE_REQUIRE_ACCOUNT_AUTH: ${LICENSE_REQUIRE_ACCOUNT_AUTH:-false}
+      PORT: 8081
 
   frontend:
     build:
       context: ./frontend
       args:
         VITE_API_URL: /api
+        VITE_COGNITO_AUTHORITY: ${COGNITO_ISSUER_URI:-}
+        VITE_COGNITO_HOSTED_UI_URL: ${COGNITO_HOSTED_UI_AUTHORITY:-}
+        VITE_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+        VITE_COGNITO_CLIENT_ID: ${COGNITO_APP_CLIENT_ID:-}
+        VITE_COGNITO_REDIRECT_URI: ${COGNITO_REDIRECT_URI:-http://localhost:${APP_PORT:-8080}/auth/callback}
+        VITE_COGNITO_LOGOUT_REDIRECT_URI: ${COGNITO_LOGOUT_REDIRECT_URI:-http://localhost:${APP_PORT:-8080}/}
     restart: unless-stopped
+    environment:
+      COGNITO_IDP_ORIGIN: ${COGNITO_IDP_ORIGIN:-}
+      TRUSTED_PROXY_CIDR: ${TRUSTED_PROXY_CIDR:-127.0.0.1/32}
     depends_on:
       - backend
+      - license-api
     ports:
       - "127.0.0.1:${APP_PORT:-8080}:80"
 
 volumes:
   postgres_data:
+  license_data:
 

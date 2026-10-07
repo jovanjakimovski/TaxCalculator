@@ -1,0 +1,52 @@
+# Free dev workspace: no account/licensing services, provider settings or codes.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      POSTGRES_DB: taxcalculator
+      POSTGRES_USER: taxcalculator
+      POSTGRES_PASSWORD: ${DEV_DB_PASSWORD:-taxcalculator-dev-only}
+    volumes:
+      - dev_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taxcalculator -d taxcalculator"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+  backend:
+    image: ${DEV_BACKEND_IMAGE:-taxcalculator-dev-backend:local}
+    build: ./backend
+    restart: unless-stopped
+    mem_limit: 768m
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/taxcalculator
+      DATABASE_USERNAME: taxcalculator
+      DATABASE_PASSWORD: ${DEV_DB_PASSWORD:-taxcalculator-dev-only}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError
+      PORT: 8080
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+  frontend:
+    image: ${DEV_FRONTEND_IMAGE:-taxcalculator-dev-frontend:local}
+    build:
+      context: ./frontend
+      args: { APP_PROFILE: dev, VITE_API_URL: /api }
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      DEV_ORIGIN_TOKEN: ${DEV_ORIGIN_TOKEN:-}
+    depends_on: [backend]
+    ports: ["${DEV_BIND_ADDRESS:-127.0.0.1}:${DEV_PORT:-8080}:80"]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+volumes:
+  dev_postgres_data:

@@ -1,5 +1,10 @@
-TaxCalculator
-=============
+# TaxCalculator
+
+## Free development profile
+
+Run `.\tax.ps1 dev` to build and open the app without login, licensing, payment settings, or access codes. Generate complete reports and Excel files directly. Production account/payment features remain in the normal build.
+
+For a separate, inexpensive CloudFormation-managed AWS dev instance in Frankfurt with HTTPS and automatic deployments, follow [DEV_DEPLOY.md](DEV_DEPLOY.md).
 
 ## Quick Start (Local)
 

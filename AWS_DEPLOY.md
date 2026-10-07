@@ -1,3 +1,7 @@
+# Separate free development environment
+
+For the recommended test-stage setup with no accounts, licenses, access codes, or payment placeholders, see [DEV_DEPLOY.md](DEV_DEPLOY.md). It creates a separate CloudFormation-managed EC2 dev stack in `eu-central-1` with HTTPS and GitHub Actions deployment. The deployment instructions below remain for the existing production and licensing sandbox profiles.
+
 # AWS deployment
 
 This setup runs the frontend, tax API, licensing API, and two separate PostgreSQL databases on one EC2 instance. Only the frontend port is public.

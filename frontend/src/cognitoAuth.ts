@@ -1,5 +1,6 @@
 import { UserManager, WebStorageStateStore } from "oidc-client-ts";
 import type { User } from "oidc-client-ts";
+import { DEV_PROFILE } from "./appProfile";
 
 const authority = import.meta.env.VITE_COGNITO_AUTHORITY as string | undefined;
 const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID as string | undefined;
@@ -11,7 +12,12 @@ const hostedUi = import.meta.env.VITE_COGNITO_HOSTED_UI_URL as
   string | undefined;
 
 export const cognitoConfigured = Boolean(
-  authority && clientId && redirectUri && logoutRedirectUri && hostedUi,
+  !DEV_PROFILE &&
+  authority &&
+  clientId &&
+  redirectUri &&
+  logoutRedirectUri &&
+  hostedUi,
 );
 
 function createUserManager() {

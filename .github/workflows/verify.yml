@@ -1,8 +1,45 @@
 name: Verify application
-on: [push, pull_request]
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
 jobs:
+  dev:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:e2e
+        working-directory: frontend
+        env: { E2E_APP_PROFILE: dev }
+      - run: pip install cfn-lint==1.57.2
+      - run: cfn-lint infra/dev-stack.yaml --regions eu-central-1
+      - run: bash -n scripts/aws-dev.sh && bash -n scripts/activate-dev-release.sh
+      - run: docker compose -f docker-compose.dev.yml build && docker compose -f docker-compose.dev.yml up -d
+      - run: |
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://localhost:8080/api/tax/health; then exit 0; fi
+            sleep 2
+          done
+          docker compose -f docker-compose.dev.yml logs
+          exit 1
+      - run: npm run test:e2e
+        working-directory: frontend
+        env: { E2E_APP_PROFILE: dev, E2E_APP_URL: 'http://127.0.0.1:8080', E2E_LIVE_RATES: 'true' }
+      - if: always()
+        run: docker compose -f docker-compose.dev.yml down
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: dev-browser-test-results, path: frontend/test-results, retention-days: 7 }
   frontend:
     runs-on: ubuntu-latest
     steps:

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { DEV_PROFILE, getDevWorkspaceId } from "./appProfile";
 import {
   consumeReportCredit,
   createCheckout,
@@ -171,24 +172,34 @@ export default function Portal() {
     booted.current = true;
     void (async () => {
       try {
-        const cfg = await getLicenseConfig();
+        const cfg: LicenseConfig = DEV_PROFILE
+          ? {
+              accountMode: false,
+              testCodeEnabled: false,
+              checkoutEnabled: false,
+              packages: [],
+            }
+          : await getLicenseConfig();
         setConfig(cfg);
         let signedIn: CognitoSession | undefined;
         let returnTo: "preview" | "account" | "home" | undefined;
-        if (location.pathname === "/auth/callback") {
+        if (!DEV_PROFILE && location.pathname === "/auth/callback") {
           try {
             signedIn = await completeCognitoSignIn();
             returnTo = takeCognitoReturnIntent();
           } finally {
             window.history.replaceState({}, "", "/");
           }
-        } else signedIn = await loadCognitoSession();
+        } else if (!DEV_PROFILE) signedIn = await loadCognitoSession();
         setSession(signedIn);
         const draft = await loadDraft();
         if (draft) await selectFile(draft, false);
         if (signedIn && returnTo)
           setView(returnTo === "preview" && !draft ? "account" : returnTo);
-        if (new URLSearchParams(location.search).get("payment") === "success") {
+        if (
+          !DEV_PROFILE &&
+          new URLSearchParams(location.search).get("payment") === "success"
+        ) {
           setNotice(
             tr(
               "Returned from checkout. Refresh your balance when payment processing completes.",
@@ -223,19 +234,23 @@ export default function Portal() {
     }
     void (async () => {
       try {
-        const identity = config.accountMode
-          ? `account:${session!.issuer}|${session!.subject}`
-          : `local:${await fingerprint(new Blob([getLicenseCredential()]))}`;
+        const identity = DEV_PROFILE
+          ? getDevWorkspaceId()
+          : config.accountMode
+            ? `account:${session!.issuer}|${session!.subject}`
+            : `local:${await fingerprint(new Blob([getLicenseCredential()]))}`;
         const saved = await listReports(identity);
         if (live) {
           setOwner(identity);
           setHistory(saved);
         }
-        const balance = await getEntitlement(
-          config.accountMode
-            ? await currentAccessToken()
-            : getLicenseCredential(),
-        );
+        const balance = DEV_PROFILE
+          ? undefined
+          : await getEntitlement(
+              config.accountMode
+                ? await currentAccessToken()
+                : getLicenseCredential(),
+            );
         if (live) {
           setEntitlement(balance);
         }
@@ -290,7 +305,7 @@ export default function Portal() {
       // Durable artifact + request ID BEFORE billing. Retrying pending records
       // must work even when a previous successful debit left zero credits.
       if (!saved) {
-        if (!entitlement || credits < 1)
+        if (!DEV_PROFILE && (!entitlement || credits < 1))
           throw new Error(
             tr(
               "You need one report credit. Buy a package or redeem a test code.",
@@ -323,8 +338,7 @@ export default function Portal() {
         saved = await saveReportIfAbsent(saved);
         setHistory(await listReports(owner));
       }
-      setBusy(tr("Unlocking your report…", "Отклучување на извештајот…"));
-      const token = await credential();
+      setBusy(tr("Preparing your report…", "Подготовка на извештајот…"));
       if (config?.accountMode) {
         const signedIn = await loadCognitoSession();
         if (
@@ -335,7 +349,10 @@ export default function Portal() {
             "Your account changed. Sign in to the original account to resume this report.",
           );
       }
-      setEntitlement(await consumeReportCredit(token, saved.requestId));
+      if (!DEV_PROFILE)
+        setEntitlement(
+          await consumeReportCredit(await credential(), saved.requestId),
+        );
       saved.status = "ready";
       await saveReport(saved);
       setReport(saved);
@@ -420,7 +437,42 @@ export default function Portal() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 30_000);
   }
-  const packages = (
+  const packages = DEV_PROFILE ? (
+    <section className="purchase-card" aria-labelledby="dev-report-title">
+      <span className="eyebrow">
+        {tr("DEVELOPMENT WORKSPACE", "РАЗВОЈНА ОКОЛИНА")}
+      </span>
+      <h2 id="dev-report-title">
+        {tr("Create your report", "Создајте извештај")}
+      </h2>
+      <p>
+        {tr(
+          "Upload a supported statement, review the warnings, and generate the full report. No account, payment, or access code is required.",
+          "Додајте поддржан извод, проверете ги предупредувањата и создајте целосен извештај. Не е потребна сметка, плаќање или код.",
+        )}
+      </p>
+      <ul className="checklist">
+        <li>
+          {tr(
+            "Full calculation and Excel download",
+            "Целосна пресметка и Excel",
+          )}
+        </li>
+        <li>
+          {tr(
+            "Reports saved on this browser",
+            "Извештаи зачувани во овој прелистувач",
+          )}
+        </li>
+        <li>
+          {tr(
+            "CSV processed on your device",
+            "CSV се обработува на вашиот уред",
+          )}
+        </li>
+      </ul>
+    </section>
+  ) : (
     <section className="purchase-card" aria-labelledby="purchase-title">
       <span className="eyebrow">
         {tr("YOUR REPORT, YOUR NUMBERS", "ВАШ ИЗВЕШТАЈ, ВАШИ ПОДАТОЦИ")}
@@ -665,7 +717,15 @@ export default function Portal() {
             >
               {language === "en" ? "МК" : "EN"}
             </button>
-            {session && config?.accountMode ? (
+            {DEV_PROFILE ? (
+              <button
+                className="button secondary small"
+                disabled={!!busy || !owner}
+                onClick={() => setView("account")}
+              >
+                {tr("My reports", "Мои извештаи")}
+              </button>
+            ) : session && config?.accountMode ? (
               <button
                 className="button secondary small"
                 disabled={!!busy}
@@ -686,6 +746,21 @@ export default function Portal() {
           </div>
         </div>
       </header>
+      {DEV_PROFILE && (
+        <aside className="local-test-strip" role="note">
+          <div className="container">
+            <p>
+              <strong>{tr("Development workspace", "Развојна околина")}</strong>
+              <span>
+                {tr(
+                  "Report generation is free here. No sign-in or access code is needed.",
+                  "Создавањето извештаи е бесплатно. Не е потребна најава или код.",
+                )}
+              </span>
+            </p>
+          </div>
+        </aside>
+      )}
       {localTesting && (
         <aside className="local-test-strip" role="note">
           <div className="container">
@@ -884,10 +959,15 @@ export default function Portal() {
                         )}
                   </h1>
                   <p className="preview-intro">
-                    {tr(
-                      "This is your free statement check. Confirm the period and supported records, then unlock the full calculation when you’re ready.",
-                      "Ова е бесплатна проверка на изводот. Потврдете ги периодот и поддржаните записи, па отклучете ја целосната пресметка кога ќе сте подготвени.",
-                    )}
+                    {DEV_PROFILE
+                      ? tr(
+                          "Confirm the period and supported records, then generate the full calculation when you’re ready.",
+                          "Потврдете ги периодот и поддржаните записи, па создајте целосна пресметка.",
+                        )
+                      : tr(
+                          "This is your free statement check. Confirm the period and supported records, then unlock the full calculation when you’re ready.",
+                          "Ова е бесплатна проверка на изводот. Потврдете ги периодот и поддржаните записи, па отклучете ја целосната пресметка кога ќе сте подготвени.",
+                        )}
                   </p>
                   <p className="file-name">{upload.file.name}</p>
                   <div className="preview-platform">
@@ -957,10 +1037,15 @@ export default function Portal() {
                   </section>
                   <section className="unlock-explainer">
                     <h2>
-                      {tr(
-                        "What you’ll receive after unlocking",
-                        "Што добивате со отклучување",
-                      )}
+                      {DEV_PROFILE
+                        ? tr(
+                            "What your report includes",
+                            "Што содржи извештајот",
+                          )
+                        : tr(
+                            "What you’ll receive after unlocking",
+                            "Што добивате со отклучување",
+                          )}
                     </h2>
                     <p>
                       {tr(
@@ -979,25 +1064,30 @@ export default function Portal() {
                   {!upload.preview.errors.length && (
                     <div className="unlock">
                       <p className="unlock-guidance">
-                        {existingUpload
+                        {DEV_PROFILE
                           ? tr(
-                              "This statement already has a saved report. Open it or resume the interrupted unlock using the same credit request.",
-                              "Овој извод веќе има зачуван извештај. Отворете го или продолжете го прекинот со истото барање за кредит.",
+                              "Review the acknowledgement below, then generate your report.",
+                              "Потврдете ја изјавата подолу, па создајте извештај.",
                             )
-                          : !canUseAccount
+                          : existingUpload
                             ? tr(
-                                "Sign in using the package card, then buy a report credit to continue. Your CSV stays here while you sign in.",
-                                "Најавете се преку картичката за пакети, па купете кредит. CSV останува тука за време на најавата.",
+                                "This statement already has a saved report. Open it or resume the interrupted unlock using the same credit request.",
+                                "Овој извод веќе има зачуван извештај. Отворете го или продолжете го прекинот со истото барање за кредит.",
                               )
-                            : credits < 1
+                            : !canUseAccount
                               ? tr(
-                                  "Choose a package to add credits, then unlock this statement. You can review everything here before paying.",
-                                  "Изберете пакет за кредити, па отклучете го изводот. Прво можете да ги проверите сите податоци тука.",
+                                  "Sign in using the package card, then buy a report credit to continue. Your CSV stays here while you sign in.",
+                                  "Најавете се преку картичката за пакети, па купете кредит. CSV останува тука за време на најавата.",
                                 )
-                              : tr(
-                                  "You have a report credit available. Check the acknowledgement below to unlock your calculation.",
-                                  "Имате достапен кредит. Потврдете ја изјавата подолу за да ја отклучите пресметката.",
-                                )}
+                              : credits < 1
+                                ? tr(
+                                    "Choose a package to add credits, then unlock this statement. You can review everything here before paying.",
+                                    "Изберете пакет за кредити, па отклучете го изводот. Прво можете да ги проверите сите податоци тука.",
+                                  )
+                                : tr(
+                                    "You have a report credit available. Check the acknowledgement below to unlock your calculation.",
+                                    "Имате достапен кредит. Потврдете ја изјавата подолу за да ја отклучите пресметката.",
+                                  )}
                       </p>
                       <label className="acknowledgement">
                         <input
@@ -1019,7 +1109,7 @@ export default function Portal() {
                           !!busy ||
                           !accepted ||
                           !owner ||
-                          (credits < 1 && !existingUpload)
+                          (!DEV_PROFILE && credits < 1 && !existingUpload)
                         }
                         onClick={() =>
                           void run(
@@ -1031,24 +1121,36 @@ export default function Portal() {
                           )
                         }
                       >
-                        {existingUpload
-                          ? existingUpload.status === "ready"
-                            ? tr(
-                                "Open saved report · free",
-                                "Отвори зачуван извештај · бесплатно",
-                              )
-                            : tr("Resume report unlock", "Продолжи отклучување")
-                          : tr(
-                              "Unlock report · 1 credit",
-                              "Отклучи извештај · 1 кредит",
-                            )}{" "}
+                        {DEV_PROFILE
+                          ? existingUpload?.status === "ready"
+                            ? tr("Open saved report", "Отвори зачуван извештај")
+                            : tr("Generate report", "Создај извештај")
+                          : existingUpload
+                            ? existingUpload.status === "ready"
+                              ? tr(
+                                  "Open saved report · free",
+                                  "Отвори зачуван извештај · бесплатно",
+                                )
+                              : tr(
+                                  "Resume report unlock",
+                                  "Продолжи отклучување",
+                                )
+                            : tr(
+                                "Unlock report · 1 credit",
+                                "Отклучи извештај · 1 кредит",
+                              )}{" "}
                         →
                       </button>
                       <p className="fine">
-                        {tr(
-                          "One credit is used only after your calculation succeeds. Reopening this report and downloading it again on this browser are free.",
-                          "Еден кредит се користи само по успешна пресметка. Повторното отворање и преземање во овој прелистувач се бесплатни.",
-                        )}
+                        {DEV_PROFILE
+                          ? tr(
+                              "Your report stays on this browser. Download a copy to keep it.",
+                              "Извештајот останува во овој прелистувач. Преземете копија за да го зачувате.",
+                            )
+                          : tr(
+                              "One credit is used only after your calculation succeeds. Reopening this report and downloading it again on this browser are free.",
+                              "Еден кредит се користи само по успешна пресметка. Повторното отворање и преземање во овој прелистувач се бесплатни.",
+                            )}
                       </p>
                     </div>
                   )}
@@ -1096,26 +1198,28 @@ export default function Portal() {
                   {session?.email ??
                     tr("Local testing workspace", "Локално тестирање")}
                 </p>
-                <div className="account-summary panel">
-                  <div>
-                    <strong>{credits}</strong>
-                    <span>
-                      {tr("available report credits", "достапни кредити")}
-                    </span>
+                {!DEV_PROFILE && (
+                  <div className="account-summary panel">
+                    <div>
+                      <strong>{credits}</strong>
+                      <span>
+                        {tr("available report credits", "достапни кредити")}
+                      </span>
+                    </div>
+                    <button
+                      className="button secondary"
+                      disabled={!!busy || !canUseAccount}
+                      onClick={() =>
+                        void run(
+                          tr("Refreshing balance…", "Освежување салдо…"),
+                          refreshCredits,
+                        )
+                      }
+                    >
+                      {tr("Refresh balance", "Освежи салдо")}
+                    </button>
                   </div>
-                  <button
-                    className="button secondary"
-                    disabled={!!busy || !canUseAccount}
-                    onClick={() =>
-                      void run(
-                        tr("Refreshing balance…", "Освежување салдо…"),
-                        refreshCredits,
-                      )
-                    }
-                  >
-                    {tr("Refresh balance", "Освежи салдо")}
-                  </button>
-                </div>
+                )}
                 <h2>
                   {tr(
                     "Reports saved on this browser",
@@ -1123,10 +1227,15 @@ export default function Portal() {
                   )}
                 </h2>
                 <p className="fine">
-                  {tr(
-                    "Credits follow your account. Report files stay on this device. Download a copy; clearing browser storage removes local reports.",
-                    "Кредитите се поврзани со сметката. Датотеките остануваат на уредот. Преземете копија; бришењето на податоците од прелистувачот ги отстранува извештаите.",
-                  )}
+                  {DEV_PROFILE
+                    ? tr(
+                        "Report files stay on this device. Download a copy; clearing browser storage removes local reports.",
+                        "Датотеките остануваат на уредот. Преземете копија; бришењето на податоците од прелистувачот ги отстранува извештаите.",
+                      )
+                    : tr(
+                        "Credits follow your account. Report files stay on this device. Download a copy; clearing browser storage removes local reports.",
+                        "Кредитите се поврзани со сметката. Датотеките остануваат на уредот. Преземете копија; бришењето на податоците од прелистувачот ги отстранува извештаите.",
+                      )}
                 </p>
                 {!history.length && (
                   <div className="empty panel">
@@ -1361,16 +1470,26 @@ export default function Portal() {
         ) : dialog === "privacy" ? (
           <>
             <p>
-              {tr(
-                "Your CSV, calculations, and files are processed and saved in your browser. Our services receive exchange-rate dates and account/credit requests, not your trades or balances. Sign-in uses Amazon Cognito; payments use Lemon Squeezy hosted checkout.",
-                "CSV, пресметките и датотеките се обработуваат и зачувуваат во прелистувачот. Сервисите добиваат датуми за курсеви и барања за сметка/кредити, а не трансакции и состојби. Најавата е преку Amazon Cognito, плаќањето преку Lemon Squeezy.",
-              )}
+              {DEV_PROFILE
+                ? tr(
+                    "Your CSV, calculations, and files are processed and saved in your browser. Our service receives exchange-rate dates, not your trades or balances. This development workspace does not use sign-in, license credits, or payment providers.",
+                    "CSV, пресметките и датотеките се обработуваат и зачувуваат во прелистувачот. Сервисот добива само датуми за курсеви, а не трансакции или состојби. Развојната околина не користи најава, кредити или плаќање.",
+                  )
+                : tr(
+                    "Your CSV, calculations, and files are processed and saved in your browser. Our services receive exchange-rate dates and account/credit requests, not your trades or balances. Sign-in uses Amazon Cognito; payments use Lemon Squeezy hosted checkout.",
+                    "CSV, пресметките и датотеките се обработуваат и зачувуваат во прелистувачот. Сервисите добиваат датуми за курсеви и барања за сметка/кредити, а не трансакции и состојби. Најавата е преку Amazon Cognito, плаќањето преку Lemon Squeezy.",
+                  )}
             </p>
             <p>
-              {tr(
-                "Selected CSVs stay locally for up to 24 hours to survive redirects. Reports remain until deleted or browser storage is cleared. Use your own device. Account/payment records are held by the service and providers. Access logs may record IP addresses and requested URLs.",
-                "Избраниот CSV останува локално до 24 часа за пренасочувања. Извештаите остануваат до бришење или чистење на прелистувачот. Користете сопствен уред. Сервисот и провајдерите чуваат записи за сметки/плаќања. Логовите може да чуваат IP адреси и URL адреси.",
-              )}
+              {DEV_PROFILE
+                ? tr(
+                    "Selected CSVs stay locally for up to 24 hours to survive reloads. Reports remain until deleted or browser storage is cleared. Use your own device. Access logs may record IP addresses and requested URLs.",
+                    "Избраниот CSV останува локално до 24 часа за повторно вчитување. Извештаите остануваат до бришење или чистење на прелистувачот. Користете сопствен уред. Логовите може да содржат IP адреси и URL адреси.",
+                  )
+                : tr(
+                    "Selected CSVs stay locally for up to 24 hours to survive redirects. Reports remain until deleted or browser storage is cleared. Use your own device. Account/payment records are held by the service and providers. Access logs may record IP addresses and requested URLs.",
+                    "Избраниот CSV останува локално до 24 часа за пренасочувања. Извештаите остануваат до бришење или чистење на прелистувачот. Користете сопствен уред. Сервисот и провајдерите чуваат записи за сметки/плаќања. Логовите може да чуваат IP адреси и URL адреси.",
+                  )}
             </p>
             <button
               className="button secondary"

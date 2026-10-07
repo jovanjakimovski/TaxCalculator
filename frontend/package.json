@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:free": "vite --mode dev",
     "preview": "vite preview",
     "build": "tsc -b && vite build",
+    "build:dev": "tsc -b && vite build --mode dev",
     "lint": "tsc -b --noEmit",
     "generate-workbook": "node ../scripts/run-tax-workbook.mjs",
     "test": "vitest run",

@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import type { Language } from "./reportStore";
 import { ReportIllustration } from "./ReportView";
+import { DEV_PROFILE } from "./appProfile";
 import "./investor-journey.css";
 
 type Actions = {
@@ -23,8 +24,18 @@ export function JourneyProgress({
 }) {
   const labels =
     language === "mk"
-      ? ["Додај извод", "Провери", "Отклучи", "Подготви пријава"]
-      : ["Add statement", "Preview", "Unlock", "Prepare filing"];
+      ? [
+          "Додај извод",
+          "Провери",
+          DEV_PROFILE ? "Создај" : "Отклучи",
+          "Подготви пријава",
+        ]
+      : [
+          "Add statement",
+          "Preview",
+          DEV_PROFILE ? "Generate" : "Unlock",
+          "Prepare filing",
+        ];
   return (
     <ol
       className="journey-progress"
@@ -80,10 +91,15 @@ export function ExportInstructions({ language }: { language: Language }) {
     ],
     [
       tr("Check it here for free", "Проверете го бесплатно тука"),
-      tr(
-        "Choose your downloaded CSV. We show the period, supported records, and warnings before you spend a report credit. A PDF, Flex Query, or edited spreadsheet is not a supported input.",
-        "Изберете го преземениот CSV. Периодот, поддржаните записи и предупредувањата се прикажуваат пред користење кредит. PDF, Flex Query и изменета табела не се поддржани.",
-      ),
+      DEV_PROFILE
+        ? tr(
+            "Choose your downloaded CSV. Review the period, supported records, and warnings before generating your report. A PDF, Flex Query, or edited spreadsheet is not a supported input.",
+            "Изберете CSV. Проверете ги периодот, записите и предупредувањата пред создавање извештај. PDF, Flex Query и изменета табела не се поддржани.",
+          )
+        : tr(
+            "Choose your downloaded CSV. We show the period, supported records, and warnings before you spend a report credit. A PDF, Flex Query, or edited spreadsheet is not a supported input.",
+            "Изберете го преземениот CSV. Периодот, поддржаните записи и предупредувањата се прикажуваат пред користење кредит. PDF, Flex Query и изменета табела не се поддржани.",
+          ),
     ],
   ];
   return (
@@ -310,17 +326,29 @@ export function InvestorLanding({
             ],
             [
               tr("Preview for free", "Бесплатен преглед"),
-              tr(
-                "Confirm the period, sales and income records. Check warnings before buying or using a credit.",
-                "Потврдете ги периодот, продажбите и приходите. Проверете ги предупредувањата пред купување или користење кредит.",
-              ),
+              DEV_PROFILE
+                ? tr(
+                    "Confirm the period, sales and income records. Check warnings before generating your report.",
+                    "Потврдете ги периодот, продажбите и приходите. Проверете ги предупредувањата пред создавање извештај.",
+                  )
+                : tr(
+                    "Confirm the period, sales and income records. Check warnings before buying or using a credit.",
+                    "Потврдете ги периодот, продажбите и приходите. Проверете ги предупредувањата пред купување или користење кредит.",
+                  ),
             ],
             [
-              tr("Sign in & unlock", "Најавете се и отклучете"),
-              tr(
-                "Buy 1, 2 or 3 report credits. One credit unlocks one unique statement; repeat downloads are free on this browser.",
-                "Купете 1, 2 или 3 кредити. Еден кредит отклучува еден уникатен извод; повторните преземања во овој прелистувач се бесплатни.",
-              ),
+              DEV_PROFILE
+                ? tr("Generate your report", "Создајте извештај")
+                : tr("Sign in & unlock", "Најавете се и отклучете"),
+              DEV_PROFILE
+                ? tr(
+                    "Generate the complete report and download Excel. No account or payment is required in this development workspace.",
+                    "Создајте целосен извештај и преземете Excel. Во развојната околина не е потребна сметка или плаќање.",
+                  )
+                : tr(
+                    "Buy 1, 2 or 3 report credits. One credit unlocks one unique statement; repeat downloads are free on this browser.",
+                    "Купете 1, 2 или 3 кредити. Еден кредит отклучува еден уникатен извод; повторните преземања во овој прелистувач се бесплатни.",
+                  ),
             ],
             [
               tr("Review & prepare filing", "Проверете и подгответе пријава"),
@@ -416,10 +444,15 @@ export function InvestorLanding({
             )}
           </h2>
           <p>
-            {tr(
-              "Built around the income Macedonian investors commonly receive from U.S. stocks and options. We validate your statement before you use a credit.",
-              "За приходите што македонските инвеститори ги добиваат од американски акции и опции. Изводот се проверува пред користење кредит.",
-            )}
+            {DEV_PROFILE
+              ? tr(
+                  "Built around the income Macedonian investors commonly receive from U.S. stocks and options. We validate your statement before generating a report.",
+                  "За приходите од американски акции и опции. Изводот се проверува пред создавање извештај.",
+                )
+              : tr(
+                  "Built around the income Macedonian investors commonly receive from U.S. stocks and options. We validate your statement before you use a credit.",
+                  "За приходите што македонските инвеститори ги добиваат од американски акции и опции. Изводот се проверува пред користење кредит.",
+                )}
           </p>
           <button className="text-button" onClick={onCalculations}>
             {tr("How we calculate", "Како пресметуваме")} →
@@ -512,14 +545,24 @@ export function InvestorLanding({
             ),
           ],
           [
-            tr(
-              "What does one report credit cover?",
-              "Што покрива еден кредит?",
-            ),
-            tr(
-              "One credit unlocks one unique CSV statement, including its detailed Excel and printable summary. Choose a completed calendar year or a period within one year. Reopening, downloading again, and switching the workbook language on the same browser are free. A different CSV uses a new credit.",
-              "Еден кредит отклучува еден уникатен CSV извод со детален Excel и резиме за печатење. Изберете завршена календарска година или период во една година. Повторно отворање, преземање и промена на јазикот во истиот прелистувач се бесплатни. Друг CSV користи нов кредит.",
-            ),
+            DEV_PROFILE
+              ? tr(
+                  "Can I generate multiple reports?",
+                  "Може ли да создадам повеќе извештаи?",
+                )
+              : tr(
+                  "What does one report credit cover?",
+                  "Што покрива еден кредит?",
+                ),
+            DEV_PROFILE
+              ? tr(
+                  "Yes. Generate reports for supported statements without credits or access codes. Reports stay on this browser; download copies before clearing its storage.",
+                  "Да. Создавајте извештаи за поддржани изводи без кредити или кодови. Извештаите остануваат во овој прелистувач; преземете копии пред бришење на податоците.",
+                )
+              : tr(
+                  "One credit unlocks one unique CSV statement, including its detailed Excel and printable summary. Choose a completed calendar year or a period within one year. Reopening, downloading again, and switching the workbook language on the same browser are free. A different CSV uses a new credit.",
+                  "Еден кредит отклучува еден уникатен CSV извод со детален Excel и резиме за печатење. Изберете завршена календарска година или период во една година. Повторно отворање, преземање и промена на јазикот во истиот прелистувач се бесплатни. Друг CSV користи нов кредит.",
+                ),
           ],
           [
             tr(
@@ -536,10 +579,15 @@ export function InvestorLanding({
               "Where do my statement and reports stay?",
               "Каде остануваат изводот и извештаите?",
             ),
-            tr(
-              "Your CSV and calculations are processed locally in your browser. Credits follow your account, but report files stay on this browser and device. Download and keep copies before clearing browser storage or changing devices.",
-              "CSV и пресметките се обработуваат локално во прелистувачот. Кредитите се поврзани со сметката, но датотеките остануваат во овој прелистувач и уред. Преземете копии пред бришење податоци или промена на уред.",
-            ),
+            DEV_PROFILE
+              ? tr(
+                  "Your CSV and calculations are processed locally in your browser. Report files stay on this browser and device. Download and keep copies before clearing browser storage or changing devices.",
+                  "CSV и пресметките се обработуваат локално во прелистувачот. Извештаите остануваат на овој уред. Преземете копии пред бришење податоци или промена на уред.",
+                )
+              : tr(
+                  "Your CSV and calculations are processed locally in your browser. Credits follow your account, but report files stay on this browser and device. Download and keep copies before clearing browser storage or changing devices.",
+                  "CSV и пресметките се обработуваат локално во прелистувачот. Кредитите се поврзани со сметката, но датотеките остануваат во овој прелистувач и уред. Преземете копии пред бришење податоци или промена на уред.",
+                ),
           ],
         ].map(([question, answer]) => (
           <details key={question}>

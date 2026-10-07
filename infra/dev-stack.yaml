@@ -1,0 +1,242 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Low-cost TaxCalculator dev - EC2, HTTPS CloudFront, ECR, S3 releases and GitHub OIDC. No accounts or paid-report services.
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues: [t3.small, t3a.small, t3.medium]
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+  CloudFrontPrefixListId:
+    Type: String
+    AllowedPattern: 'pl-[a-f0-9]+'
+    Description: Resolved automatically by scripts/aws-dev.sh.
+  GitHubRepository:
+    Type: String
+    Default: jovanjakimovski/TaxCalculator
+    AllowedPattern: '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+'
+  ExistingGitHubOidcProviderArn:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|arn:aws:iam::[0-9]{12}:oidc-provider/token.actions.githubusercontent.com'
+Conditions:
+  CreateGitHubProvider: !Equals [!Ref ExistingGitHubOidcProviderArn, '']
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.42.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: !Sub '${AWS::StackName}-dev' }]
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties: { VpcId: !Ref Vpc, InternetGatewayId: !Ref InternetGateway }
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.42.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: { VpcId: !Ref Vpc }
+  InternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  SubnetRoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref Subnet, RouteTableId: !Ref RouteTable }
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Dev HTTP from CloudFront only. No SSH, database or API host ports.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, SourcePrefixListId: !Ref CloudFrontPrefixListId }
+  ReleaseBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      VersioningConfiguration: { Status: Enabled }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 } }]
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration: { NoncurrentDays: 30 }
+            AbortIncompleteMultipartUpload: { DaysAfterInitiation: 1 }
+  ReleaseBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ReleaseBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt ReleaseBucket.Arn, !Sub '${ReleaseBucket.Arn}/*']
+            Condition: { Bool: { 'aws:SecureTransport': 'false' } }
+  BackendRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      EmptyOnDelete: true
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: { ScanOnPush: true }
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"Keep the last 20 release images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
+  FrontendRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      EmptyOnDelete: true
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: { ScanOnPush: true }
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"Keep the last 20 release images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{ Effect: Allow, Principal: { Service: ec2.amazonaws.com }, Action: 'sts:AssumeRole' }]
+      ManagedPolicyArns: [!Sub 'arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore']
+      Policies:
+        - PolicyName: PullDevReleases
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - { Effect: Allow, Action: 'ecr:GetAuthorizationToken', Resource: '*' }
+              - Effect: Allow
+                Action: ['ecr:BatchGetImage', 'ecr:GetDownloadUrlForLayer', 'ecr:BatchCheckLayerAvailability']
+                Resource: [!GetAtt BackendRepository.Arn, !GetAtt FrontendRepository.Arn]
+              - { Effect: Allow, Action: 's3:GetObject', Resource: !Sub '${ReleaseBucket.Arn}/releases/*' }
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: { Roles: [!Ref InstanceRole] }
+  DevInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: [InternetRoute, SubnetRoute]
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      SubnetId: !Ref Subnet
+      SecurityGroupIds: [!Ref WebSecurityGroup]
+      CreditSpecification: { CPUCredits: standard }
+      MetadataOptions: { HttpTokens: required, HttpEndpoint: enabled }
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeType: gp3, VolumeSize: 20, Encrypted: true, DeleteOnTermination: true }
+      Tags: [{ Key: Name, Value: !Sub '${AWS::StackName}-dev' }, { Key: Environment, Value: dev }]
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -euo pipefail
+          dnf install -y docker jq openssl
+          systemctl enable --now docker amazon-ssm-agent
+          mkdir -p /usr/local/lib/docker/cli-plugins /opt/taxcalculator-dev/releases
+          curl --fail --location --retry 3 https://github.com/docker/compose/releases/download/v2.40.3/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+          echo 'dba9d98e1ba5bfe11d88c99b9bd32fc4a0624a30fafe68eea34d61a3e42fd372  /usr/local/lib/docker/cli-plugins/docker-compose' | sha256sum --check
+          chmod 755 /usr/local/lib/docker/cli-plugins/docker-compose
+          docker compose version
+          aws --version
+          touch /opt/taxcalculator-dev/bootstrap-ready
+  DevAddress:
+    Type: AWS::EC2::EIP
+    DependsOn: GatewayAttachment
+    Properties: { Domain: vpc }
+  AddressAttachment:
+    Type: AWS::EC2::EIPAssociation
+    Properties: { InstanceId: !Ref DevInstance, AllocationId: !GetAtt DevAddress.AllocationId }
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: AddressAttachment
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub '${AWS::StackName}: free development workspace'
+        PriceClass: PriceClass_100
+        HttpVersion: http2
+        IPV6Enabled: true
+        ViewerCertificate: { CloudFrontDefaultCertificate: true }
+        Origins:
+          - Id: DevEc2
+            DomainName: !Sub
+              - 'ec2-${AddressParts}.${AWS::Region}.compute.amazonaws.com'
+              - AddressParts: !Join ['-', !Split ['.', !Ref DevAddress]]
+            OriginCustomHeaders:
+              - HeaderName: X-TaxCalculator-Origin
+                HeaderValue: !Select [2, !Split ['/', !Ref 'AWS::StackId']]
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+              OriginReadTimeout: 45
+        DefaultCacheBehavior:
+          TargetOriginId: DevEc2
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          CachePolicyId: 413f1606-6c25-4d5c-a52e-caaaf990fb74
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+  GitHubProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateGitHubProvider
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If [CreateGitHubProvider, !Ref GitHubProvider, !Ref ExistingGitHubOidcProviderArn]
+            Action: 'sts:AssumeRoleWithWebIdentity'
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
+                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubRepository}:environment:dev'
+      Policies:
+        - PolicyName: DeployOnlyThisDevApp
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - { Effect: Allow, Action: 'cloudformation:DescribeStacks', Resource: !Ref 'AWS::StackId' }
+              - { Effect: Allow, Action: 'ecr:GetAuthorizationToken', Resource: '*' }
+              - Effect: Allow
+                Action: ['ecr:BatchCheckLayerAvailability', 'ecr:InitiateLayerUpload', 'ecr:UploadLayerPart', 'ecr:CompleteLayerUpload', 'ecr:PutImage', 'ecr:DescribeImages', 'ecr:BatchGetImage']
+                Resource: [!GetAtt BackendRepository.Arn, !GetAtt FrontendRepository.Arn]
+              - { Effect: Allow, Action: 's3:PutObject', Resource: !Sub '${ReleaseBucket.Arn}/releases/*' }
+              - Effect: Allow
+                Action: 'ssm:SendCommand'
+                Resource: [!Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript', !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${DevInstance}']
+              - { Effect: Allow, Action: ['ssm:GetCommandInvocation', 'ssm:DescribeInstanceInformation'], Resource: '*' }
+Outputs:
+  AppUrl: { Value: !Sub 'https://${Distribution.DomainName}/' }
+  InstanceId: { Value: !Ref DevInstance }
+  ReleaseBucket: { Value: !Ref ReleaseBucket }
+  BackendRepositoryUri: { Value: !GetAtt BackendRepository.RepositoryUri }
+  FrontendRepositoryUri: { Value: !GetAtt FrontendRepository.RepositoryUri }
+  GitHubDeployRoleArn: { Value: !GetAtt GitHubDeployRole.Arn }
+  DistributionId: { Value: !Ref Distribution }

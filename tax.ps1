@@ -1,6 +1,6 @@
 param(
   [Parameter(Position = 0, Mandatory = $true)]
-  [ValidateSet("up", "ui", "workbook", "down", "status")]
+  [ValidateSet("up", "ui", "dev", "dev-down", "workbook", "down", "status")]
   [string]$Action,
 
   [Parameter(Position = 1)]
@@ -21,11 +21,11 @@ function Invoke-Compose([string[]]$ComposeArgs) {
   }
 }
 
-function Get-AppUrl {
-  $port = $env:APP_PORT
+function Get-AppUrl([string]$portKey = "APP_PORT") {
+  $port = [Environment]::GetEnvironmentVariable($portKey)
   if (-not $port -and (Test-Path ".env")) {
-    $portLine = Get-Content ".env" | Where-Object { $_ -match '^\s*APP_PORT\s*=' } | Select-Object -Last 1
-    if ($portLine -match '^\s*APP_PORT\s*=\s*(\d+)\s*$') {
+    $portLine = Get-Content ".env" | Where-Object { $_ -match "^\s*$portKey\s*=" } | Select-Object -Last 1
+    if ($portLine -match "^\s*$portKey\s*=\s*(\d+)\s*$") {
       $port = $Matches[1]
     }
   }
@@ -33,13 +33,14 @@ function Get-AppUrl {
   return "http://localhost:$port"
 }
 
-function Wait-ForApi([string]$appUrl) {
+function Wait-ForApi([string]$appUrl, [bool]$includeLicense = $true) {
   $probeUrl = "$appUrl/api/tax/health"
   $licenseProbeUrl = "$appUrl/api/license/health"
   for ($attempt = 0; $attempt -lt 45; $attempt++) {
     try {
       $response = Invoke-WebRequest -Uri $probeUrl -Method Get -TimeoutSec 3 -UseBasicParsing
       if ($response.StatusCode -eq 200) {
+        if (-not $includeLicense) { return }
         $licenseResponse = Invoke-WebRequest -Uri $licenseProbeUrl -Method Get -TimeoutSec 3 -UseBasicParsing
         if ($licenseResponse.StatusCode -eq 200) { return }
       }
@@ -64,6 +65,16 @@ try {
   $appUrl = Get-AppUrl
 
   switch ($Action) {
+    "dev" {
+      $appUrl = Get-AppUrl "DEV_PORT"
+      Invoke-Compose @("-f", "docker-compose.dev.yml", "up", "-d", "--build")
+      Wait-ForApi $appUrl $false
+      Write-Host "Development workspace is running at $appUrl"
+      Start-Process $appUrl
+    }
+    "dev-down" {
+      Invoke-Compose @("-f", "docker-compose.dev.yml", "down")
+    }
     "up" {
       Start-Stack $appUrl
       Write-Host "TaxCalculator is running at $appUrl"

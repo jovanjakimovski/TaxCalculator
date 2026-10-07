@@ -2,6 +2,26 @@
 
 This setup runs the frontend, tax API, licensing API, and two separate PostgreSQL databases on one EC2 instance. Only the frontend port is public.
 
+## EC2 test stage: run without provider setup
+
+For your current test stage, use the separate sandbox profile. It requires Docker Compose, but no Cognito, Lemon Squeezy, Secrets Manager, domain, or placeholder configuration. From the existing app checkout on EC2:
+
+```bash
+git pull --ff-only origin main
+docker compose -f docker-compose.ec2-test.yml up -d --build
+docker compose -f docker-compose.ec2-test.yml ps
+```
+
+Open `http://YOUR_EC2_PUBLIC_IP/` (or your existing app URL). The default frontend port is `80`; an existing `APP_PORT` setting still applies. Allow that port in your EC2 security group from your testers' IPs, or use your existing load balancer/reverse proxy. Neither database nor API has a published host port.
+
+The sample, calculation guide, CSV preview, exchange rates, report generation, Excel download, and browser-local saved reports work without configuring external services. Enter `LOCAL-TEST-CODE` in the upload preview or My reports to receive three test report credits per browser license key. Optional `EC2_TEST_CODE` and `EC2_TEST_CREDITS` overrides are available, but are not required. Redeeming the same code again does not refill a used balance.
+
+All sign-in, account-credit, checkout, and webhook implementations remain in the app. The sandbox uses browser license keys and shows sign-in as unconfigured; it does not simulate real Cognito accounts or payment processing. It explicitly ignores provider settings and production authentication flags from `.env`, so copied placeholders do not prevent sandbox startup. Use the production profile below when you are ready to connect real accounts and payments.
+
+Keep the existing checkout directory and Compose project name to reuse your current database volumes. The tax database defaults to the previous AWS test password; if you previously set a custom database password, keep that actual password in `POSTGRES_PASSWORD`. Existing licensing databases likewise require their actual `LICENSE_DB_PASSWORD`. PostgreSQL does not change an initialized database password when a Compose variable changes. Do not overwrite `.env` or delete database volumes.
+
+This profile enables free test credits and uses fallback database passwords. Restrict access to testers and switch to the production setup before accepting real customers.
+
 ## 1. Create the EC2 instance
 
 1. In AWS EC2, launch an Ubuntu instance eligible for your Free Tier.

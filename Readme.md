@@ -27,7 +27,9 @@ Stop the local stack while keeping its database volume:
 .\tax.ps1 down
 ```
 
-AWS deployment requires strong database secrets, Cognito accounts, real payment configuration, and HTTPS. It has no default database passwords. Use the Secrets Manager deployment script and configuration check described in `AWS_DEPLOY.md`. Never expose the local Compose profile publicly.
+For the current EC2 test stage, run `docker compose -f docker-compose.ec2-test.yml up -d --build`. It starts without Cognito, payment, or Secrets Manager settings, keeps both databases private, and enables `LOCAL-TEST-CODE` for report testing. Real sign-in and payment processing remain available in the code but need their providers configured. See the sandbox instructions in `AWS_DEPLOY.md`, including how to preserve an existing database password.
+
+Production AWS deployment requires strong database secrets, Cognito accounts, real payment configuration, and HTTPS. It has no default database passwords. Use the Secrets Manager deployment script and configuration check described in `AWS_DEPLOY.md`. Never expose the local Compose profile publicly.
 
 ## Report Access and Payment Testing
 

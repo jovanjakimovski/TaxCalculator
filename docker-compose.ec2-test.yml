@@ -1,0 +1,91 @@
+# EC2 sandbox: no Cognito, payment provider, or Secrets Manager setup required.
+# Uses the same volume names as the AWS stack. Keep the same checkout/project name.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: taxcalculator
+      POSTGRES_USER: taxcalculator
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taxcalculator-test-only}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taxcalculator -d taxcalculator"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  license-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: license
+      POSTGRES_USER: license
+      POSTGRES_PASSWORD: ${LICENSE_DB_PASSWORD:-license-local-only}
+    volumes:
+      - license_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U license -d license"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/taxcalculator
+      DATABASE_USERNAME: taxcalculator
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-taxcalculator-test-only}
+      PORT: 8080
+
+  license-api:
+    build: ./licensing
+    restart: unless-stopped
+    depends_on:
+      license-postgres:
+        condition: service_healthy
+    environment:
+      LICENSE_DATABASE_URL: jdbc:postgresql://license-postgres:5432/license
+      LICENSE_DATABASE_USERNAME: license
+      LICENSE_DATABASE_PASSWORD: ${LICENSE_DB_PASSWORD:-license-local-only}
+      LICENSE_TEST_MODE: "true"
+      LICENSE_TEST_CODE: ${EC2_TEST_CODE:-LOCAL-TEST-CODE}
+      LICENSE_TEST_CREDITS: ${EC2_TEST_CREDITS:-3}
+      LICENSE_REQUIRE_ACCOUNT_AUTH: "false"
+      LICENSE_ALLOW_ANONYMOUS_CHECKOUT: "false"
+      PAYMENT_TEST_MODE: "true"
+      COGNITO_ISSUER_URI: ""
+      COGNITO_APP_CLIENT_ID: ""
+      LEMON_SQUEEZY_API_KEY: ""
+      LEMON_SQUEEZY_WEBHOOK_SECRET: ""
+      PORT: 8081
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: /api
+        VITE_COGNITO_AUTHORITY: ""
+        VITE_COGNITO_HOSTED_UI_URL: ""
+        VITE_COGNITO_CLIENT_ID: ""
+        VITE_COGNITO_REDIRECT_URI: ""
+        VITE_COGNITO_LOGOUT_REDIRECT_URI: ""
+        VITE_SUPPORT_EMAIL: ""
+    restart: unless-stopped
+    environment:
+      COGNITO_IDP_ORIGIN: ""
+      TRUSTED_PROXY_CIDR: ${TRUSTED_PROXY_CIDR:-127.0.0.1/32}
+    depends_on:
+      - backend
+      - license-api
+    ports:
+      - "${APP_PORT:-80}:80"
+
+volumes:
+  postgres_data:
+  license_data:

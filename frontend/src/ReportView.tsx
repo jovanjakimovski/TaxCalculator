@@ -1,3 +1,4 @@
+import { Icon } from "./Icon";
 import { statementMessage } from "./statementMessages";
 import { useEffect, useRef, useState } from "react";
 import type { Language, SavedReport } from "./reportStore";
@@ -14,78 +15,6 @@ const amount = (value: number, language: Language) =>
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
   }).format(value);
-
-export function ReportIllustration({ language }: { language: Language }) {
-  const tr = (en: string, mk: string) => (language === "mk" ? mk : en);
-  return (
-    <div
-      className="report-illustration"
-      aria-label={tr(
-        "Illustration of a tax report",
-        "Илустрација на даночен извештај",
-      )}
-    >
-      <div className="floating-pill">
-        ✓ {tr("From statement to clarity", "Од извод до јасност")}
-      </div>
-      <div className="paper paper-back">
-        <div className="paper-logo">
-          taxcalculator <small>MK</small>
-        </div>
-        <h3>{tr("Your monthly breakdown", "Месечна пресметка")}</h3>
-        <div className="fake-lines" />
-      </div>
-      <div className="paper paper-front">
-        <div className="paper-heading">
-          <div className="paper-logo">
-            taxcalculator <small>MK</small>
-          </div>
-          <span className="tag">{tr("SAMPLE", "ПРИМЕР")}</span>
-        </div>
-        <h3>{tr("Your tax report", "Ваш даночен извештај")}</h3>
-        <p>
-          {tr(
-            "A year of investing. One clear view.",
-            "Година инвестирање. Јасен преглед.",
-          )}
-        </p>
-        <div className="illustration-metrics">
-          <div>
-            <small>{tr("Tax rate", "Стапка")}</small>
-            <strong>
-              10<span>%</span>
-            </strong>
-          </div>
-          <div>
-            <small>{tr("Monthly overview", "Месечен преглед")}</small>
-            <strong>
-              12<span>{tr(" months", " месеци")}</span>
-            </strong>
-          </div>
-        </div>
-        <div className="mini-chart" aria-hidden="true">
-          {[30, 44, 37, 65, 54, 81, 67, 93, 76, 64, 98, 83].map((height, i) => (
-            <i key={i} style={{ height: `${height}%` }} />
-          ))}
-        </div>
-        <div className="illustration-note">
-          <span>✓</span>
-          {tr(
-            "Stocks, options, dividends & interest",
-            "Акции, опции, дивиденди и камата",
-          )}
-        </div>
-        <div className="illustration-note">
-          <span>✓</span>
-          {tr("Excel ready for your review", "Excel подготвен за проверка")}
-        </div>
-      </div>
-      <span className="yellow-spark" aria-hidden="true">
-        ✦
-      </span>
-    </div>
-  );
-}
 
 type Props = {
   report: SavedReport;
@@ -117,6 +46,7 @@ export function ReportView({
       "",
   );
   const heading = useRef<HTMLHeadingElement>(null);
+  const sectionNav = useRef<HTMLDivElement>(null);
   useEffect(() => {
     heading.current?.focus({ preventScroll: true });
     setTab("overview");
@@ -131,6 +61,68 @@ export function ReportView({
   useEffect(() => {
     setPage(0);
   }, [query, filter, report.id]);
+  useEffect(() => {
+    const sections = [
+      "overview",
+      "monthly",
+      "trades",
+      "income",
+      "rates",
+      "methodology",
+      "notes",
+    ]
+      .map((id) => document.getElementById(id))
+      .filter((element): element is HTMLElement => Boolean(element));
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const threshold =
+        (sectionNav.current?.parentElement?.getBoundingClientRect().height ??
+          70) + 32;
+      let current = sections[0]?.id ?? "overview";
+      for (const section of sections) {
+        if (section.getBoundingClientRect().top <= threshold)
+          current = section.id;
+      }
+      if (
+        window.scrollY + window.innerHeight >=
+        document.documentElement.scrollHeight - 2
+      ) {
+        current = sections.at(-1)?.id ?? current;
+      }
+      setTab(current);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    update();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [report.id]);
+  useEffect(() => {
+    const nav = sectionNav.current;
+    const active = nav?.querySelector<HTMLButtonElement>(
+      '[aria-current="location"]',
+    );
+    if (!nav || !active) return;
+    const bounds = nav.getBoundingClientRect();
+    const item = active.getBoundingClientRect();
+    if (item.left < bounds.left + 12 || item.right > bounds.right - 12) {
+      nav.scrollTo({
+        left:
+          nav.scrollLeft +
+          item.left -
+          bounds.left -
+          (bounds.width - item.width) / 2,
+        behavior: "auto",
+      });
+    }
+  }, [tab, language]);
   const filtered = r.rows.filter(
     (row) =>
       (!query || row.symbol.toLowerCase().includes(query.toLowerCase())) &&
@@ -220,17 +212,22 @@ export function ReportView({
         className="report-tabs"
         aria-label={tr("Report sections", "Делови на извештајот")}
       >
-        <div className="container">
+        <div className="container" ref={sectionNav}>
           {tabs.map(([id, label]) => (
             <button
               key={id}
-              aria-current={tab === id ? "page" : undefined}
+              aria-current={tab === id ? "location" : undefined}
               className={tab === id ? "active" : ""}
               onClick={() => {
                 setTab(id);
-                document
-                  .getElementById(id)
-                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                document.getElementById(id)?.scrollIntoView({
+                  behavior: window.matchMedia(
+                    "(prefers-reduced-motion: reduce)",
+                  ).matches
+                    ? "auto"
+                    : "smooth",
+                  block: "start",
+                });
               }}
             >
               {label}
@@ -249,11 +246,10 @@ export function ReportView({
         )}
         <header className="panel report-header">
           <div className="report-cover" aria-hidden="true">
-            <span>↗</span>
-            <strong>
-              10<small>%</small>
-            </strong>
-            <p>{tr("A clearer picture", "Појасна слика")}</p>
+            <Icon name="file" />
+            <p>{tr("STATEMENT YEAR", "ГОДИНА НА ИЗВОД")}</p>
+            <strong>{report.preview.start.slice(0, 4)}</strong>
+            <span>IBKR → MKD</span>
           </div>
           <div className="report-title">
             <span className="eyebrow">
@@ -270,8 +266,8 @@ export function ReportView({
             </h1>
             <p className="report-context">
               {tr(
-                "Your IBKR sales and investment income, organised in MKD to help you prepare your tax filing in Macedonia.",
-                "Вашите продажби и инвестициски приходи од IBKR, организирани во MKD за полесна подготовка на даночната пријава во Македонија.",
+                "Your IBKR statement, organised in MKD for review.",
+                "Вашиот IBKR извод, организиран во MKD за проверка.",
               )}
             </p>
             <p className="file-name">{report.file.name}</p>
@@ -284,14 +280,17 @@ export function ReportView({
             </div>
             <p className="fine">
               {tr("Prepared", "Подготвен")}{" "}
-              {new Date(report.created).toLocaleString(
-                language === "mk" ? "mk-MK" : "en-GB",
-              )}{" "}
-              ·{" "}
-              {tr(
-                "Rates and calculations retained with this report",
-                "Курсевите и пресметките се зачувани со извештајот",
-              )}
+              <time
+                dateTime={new Date(report.created).toISOString()}
+                title={new Date(report.created).toLocaleString(
+                  language === "mk" ? "mk-MK" : "en-GB",
+                )}
+              >
+                {new Date(report.created).toLocaleDateString(
+                  language === "mk" ? "mk-MK" : "en-GB",
+                )}
+              </time>{" "}
+              · {tr("Saved on this browser", "Зачуван во овој прелистувач")}
             </p>
             <div className="report-actions">
               <button
@@ -299,7 +298,8 @@ export function ReportView({
                 disabled={busy}
                 onClick={onDownload}
               >
-                {tr("Download Excel", "Преземи Excel")} ↓
+                <Icon name="download" />
+                {tr("Download Excel", "Преземи Excel")}
               </button>
               <button
                 className="button secondary"
@@ -321,12 +321,20 @@ export function ReportView({
                 {tr("New statement", "Нов извод")} →
               </button>
             </div>
-            <p className="fine report-export-help">
-              {tr(
-                "Excel includes all transaction records and formulas. Print / Save PDF creates the summary, monthly table, and filing checklist. Re-downloads of this saved report do not use another credit.",
-                "Excel ги вклучува сите трансакции и формули. „Печати / Зачувај PDF“ создава резиме, месечна табела и листа за проверка пред пријавување. Повторното преземање на зачуваниот извештај не троши нов кредит.",
-              )}
-            </p>
+            <details className="fine report-export-help">
+              <summary>
+                {tr(
+                  "What’s included in your downloads?",
+                  "Што содржат преземањата?",
+                )}
+              </summary>
+              <p>
+                {tr(
+                  "Excel includes all transaction records and formulas. Print / Save PDF creates the summary, monthly table, and filing checklist. Re-downloads of this saved report do not use another credit.",
+                  "Excel ги вклучува сите трансакции и формули. „Печати / Зачувај PDF“ создава резиме, месечна табела и листа за проверка пред пријавување. Повторното преземање на зачуваниот извештај не троши нов кредит.",
+                )}
+              </p>
+            </details>
           </div>
         </header>
         <section className="panel report-section" id="overview">

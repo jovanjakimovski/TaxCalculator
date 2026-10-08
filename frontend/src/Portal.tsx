@@ -40,6 +40,8 @@ import type { Language, SavedReport } from "./reportStore";
 import { ReportView } from "./ReportView";
 import { CalculationGuide } from "./CalculationGuide";
 import { SignInView } from "./SignInView";
+import { BrandMark } from "./BrandMark";
+import { Icon } from "./Icon";
 import {
   InvestorLanding,
   JourneyProgress,
@@ -60,6 +62,9 @@ export default function Portal() {
   );
   const tr = (en: string, mk: string) => (language === "mk" ? mk : en);
   const [view, setView] = useState<View>("home");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const siteHeader = useRef<HTMLElement>(null);
+  const menuToggle = useRef<HTMLButtonElement>(null);
   const [session, setSession] = useState<CognitoSession>();
   const [config, setConfig] = useState<LicenseConfig>();
   const [entitlement, setEntitlement] = useState<Entitlement>();
@@ -80,6 +85,7 @@ export default function Portal() {
   const [dialog, setDialog] = useState<"help" | "privacy" | "terms">();
   const modal = useRef<HTMLDialogElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const fileSelection = useRef(0);
   const working = useRef(false);
   const booted = useRef(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -93,11 +99,34 @@ export default function Portal() {
   const existingUpload =
     upload && history.find((item) => item.fingerprint === upload.hash);
 
+  useEffect(() => setMenuOpen(false), [view]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const dismiss = (event: PointerEvent) => {
+      if (!siteHeader.current?.contains(event.target as Node))
+        setMenuOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        menuToggle.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [menuOpen]);
+
   function openCalculations() {
+    setMenuOpen(false);
     if (view !== "guide") guideReturn.current = view;
     setView("guide");
   }
   function openSignIn() {
+    setMenuOpen(false);
     if (view !== "signin") signInReturn.current = view;
     setView("signin");
   }
@@ -145,6 +174,7 @@ export default function Portal() {
     if (owner) setHistory(await listReports(owner));
   }
   async function selectFile(file: File, persist = true) {
+    const selection = ++fileSelection.current;
     if (!file.name.toLowerCase().endsWith(".csv"))
       throw new Error(
         tr(
@@ -161,7 +191,9 @@ export default function Portal() {
       );
     const preview = inspectStatement(await file.text());
     const hash = await fingerprint(file);
+    if (selection !== fileSelection.current) return;
     if (persist) await saveDraft(file);
+    if (selection !== fileSelection.current) return;
     setUpload({ file, preview, hash });
     if (owner) setHistory(await listReports(owner));
     setAccepted(false);
@@ -193,7 +225,8 @@ export default function Portal() {
         } else if (!DEV_PROFILE) signedIn = await loadCognitoSession();
         setSession(signedIn);
         const draft = await loadDraft();
-        if (draft) await selectFile(draft, false);
+        if (draft && fileSelection.current === 0)
+          await selectFile(draft, false);
         if (signedIn && returnTo)
           setView(returnTo === "preview" && !draft ? "account" : returnTo);
         if (
@@ -673,35 +706,47 @@ export default function Portal() {
       <a className="skip-link" href="#main">
         {tr("Skip to content", "Кон содржината")}
       </a>
-      <header className="site-header">
+      <header className="site-header" ref={siteHeader}>
         <div className="container header-inner">
           <button
             className="brand"
             aria-label="TaxCalculator home"
             disabled={!!busy}
-            onClick={() => setView("home")}
+            onClick={() => {
+              setMenuOpen(false);
+              setView("home");
+            }}
           >
-            <span className="brand-icon">
-              t<span>✓</span>
-            </span>
+            <BrandMark />
             tax<span>calculator</span>
             <sup>MK</sup>
           </button>
-          <nav aria-label={tr("Main navigation", "Главна навигација")}>
+          <nav
+            id="main-navigation"
+            className={menuOpen ? "main-navigation open" : "main-navigation"}
+            aria-label={tr("Main navigation", "Главна навигација")}
+          >
             <button
               className="nav-link"
+              aria-current={
+                view === "report" && report?.owner === "sample"
+                  ? "page"
+                  : undefined
+              }
               disabled={!!busy}
-              onClick={() =>
+              onClick={() => {
+                setMenuOpen(false);
                 void run(
                   tr("Preparing sample…", "Подготовка на пример…"),
                   sample,
-                )
-              }
+                );
+              }}
             >
               {tr("Sample report", "Пример извештај")}
             </button>
             <button
               className="nav-link"
+              aria-current={view === "guide" ? "page" : undefined}
               disabled={!!busy}
               onClick={openCalculations}
             >
@@ -719,19 +764,33 @@ export default function Portal() {
             </button>
             {DEV_PROFILE ? (
               <button
-                className="button secondary small"
+                className="button secondary small header-workspace"
+                title={tr("My reports", "Мои извештаи")}
                 disabled={!!busy || !owner}
-                onClick={() => setView("account")}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setView("account");
+                }}
               >
-                {tr("My reports", "Мои извештаи")}
+                <Icon name="file" className="workspace-icon" />
+                <span className="workspace-label">
+                  {tr("My reports", "Мои извештаи")}
+                </span>
               </button>
             ) : session && config?.accountMode ? (
               <button
-                className="button secondary small"
+                className="button secondary small header-workspace"
+                title={tr("My account", "Моја сметка")}
                 disabled={!!busy}
-                onClick={() => setView("account")}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setView("account");
+                }}
               >
-                {tr("My account", "Моја сметка")}{" "}
+                <Icon name="file" className="workspace-icon" />
+                <span className="workspace-label">
+                  {tr("My account", "Моја сметка")}
+                </span>{" "}
                 <span className="credit-badge">{credits}</span>
               </button>
             ) : (
@@ -743,6 +802,20 @@ export default function Portal() {
                 {tr("Log in", "Најави се")}
               </button>
             )}
+            <button
+              className="menu-toggle"
+              ref={menuToggle}
+              disabled={!!busy}
+              aria-label={tr(
+                menuOpen ? "Close navigation" : "Open navigation",
+                menuOpen ? "Затвори навигација" : "Отвори навигација",
+              )}
+              aria-expanded={menuOpen}
+              aria-controls="main-navigation"
+              onClick={() => setMenuOpen(!menuOpen)}
+            >
+              <Icon name={menuOpen ? "close" : "menu"} />
+            </button>
           </div>
         </div>
       </header>
@@ -969,7 +1042,31 @@ export default function Portal() {
                           "Ова е бесплатна проверка на изводот. Потврдете ги периодот и поддржаните записи, па отклучете ја целосната пресметка кога ќе сте подготвени.",
                         )}
                   </p>
-                  <p className="file-name">{upload.file.name}</p>
+                  <div className="statement-file">
+                    <span className="statement-file-icon">
+                      <Icon name="file" />
+                    </span>
+                    <div>
+                      <p className="file-name">{upload.file.name}</p>
+                      <small>
+                        {tr(
+                          "Statement checked locally",
+                          "Изводот е проверен локално",
+                        )}{" "}
+                        · {Math.max(1, Math.round(upload.file.size / 1024))} KB
+                      </small>
+                    </div>
+                    <span
+                      className={`statement-file-status${upload.preview.errors.length ? " needs-review" : ""}`}
+                    >
+                      <Icon
+                        name={upload.preview.errors.length ? "file" : "check"}
+                      />
+                      {upload.preview.errors.length
+                        ? tr("Check needed", "Потребна проверка")
+                        : tr("CSV checked", "CSV проверен")}
+                    </span>
+                  </div>
                   <div className="preview-platform">
                     <span className="tag">Interactive Brokers · USD</span>
                     <span className="tag">

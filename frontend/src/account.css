@@ -1,5 +1,5 @@
 .signin-page {
-  background: #eff7ff;
+  background: #f8f8f6;
   padding: 35px 0 70px;
   min-height: 78vh;
 }
@@ -16,7 +16,7 @@
   line-height: 1.15;
 }
 .signin-lead {
-  color: #466277;
+  color: #467764;
   font-size: 1rem;
   max-width: 520px;
 }
@@ -35,9 +35,9 @@
   width: 38px;
   height: 38px;
   flex-shrink: 0;
-  border: 1px solid #c5def1;
+  border: 1px solid #cee8de;
   border-radius: 10px;
-  color: #0066d4;
+  color: #449073;
   font-size: 0.72rem;
   font-weight: 800;
   background: #ffffff90;
@@ -47,20 +47,20 @@
   margin: 0 0 7px;
 }
 .account-benefits p {
-  color: #526b7d;
+  color: #527d6d;
   font-size: 0.86rem;
   margin: 0;
 }
 .signin-free-note {
-  border-top: 1px solid #d4e3ed;
+  border-top: 1px solid #e4e6db;
   padding-top: 22px;
   margin-top: 30px;
   max-width: 520px;
 }
 .signin-card {
   padding: 36px;
-  border-color: #d1e3f0;
-  box-shadow: 0 15px 45px #173f6010;
+  border-color: #e4e6db;
+  box-shadow: 0 15px 45px #26514010;
 }
 .signin-envelope {
   display: grid;
@@ -69,8 +69,8 @@
   height: 55px;
   font-size: 1.7rem;
   font-weight: 600;
-  background: #e6f2ff;
-  color: #0067d9;
+  background: #f4f5f0;
+  color: #459476;
   border-radius: 16px;
   margin-bottom: 24px;
 }
@@ -96,10 +96,10 @@
   margin-bottom: 0;
 }
 .signin-unavailable {
-  border: 1px solid #e0e9f0;
+  border: 1px solid #eaece4;
   padding: 16px 18px;
   border-radius: 10px;
-  background: #f7fafc;
+  background: #fafaf9;
 }
 .signin-unavailable strong {
   font-size: 0.81rem;
@@ -111,14 +111,14 @@
 }
 .signin-card .signin-draft-note {
   padding-top: 18px;
-  border-top: 1px solid #e1eaf1;
+  border-top: 1px solid #ebede5;
   margin: 22px 0 0;
   font-size: 0.78rem;
 }
 .signin-test-access {
   display: grid;
   gap: 6px;
-  border-top: 1px solid #e1eaf1;
+  border-top: 1px solid #ebede5;
   padding-top: 20px;
   margin-top: 24px;
 }
@@ -130,14 +130,14 @@
   justify-self: start;
   padding: 2px 0;
   font-size: 0.8rem;
-  color: #005cbc;
+  color: #3c8066;
 }
 .signin-test-access small {
   font-size: 0.7rem;
 }
 .local-test-strip {
-  background: #f3f7fb;
-  border-bottom: 1px solid #e4ebf1;
+  background: #f8f8f6;
+  border-bottom: 1px solid #edeee7;
 }
 .local-test-strip .container {
   display: flex;
@@ -149,11 +149,11 @@
 }
 .local-test-strip p {
   margin: 0;
-  color: #5c6d7c;
+  color: #5c7c70;
   font-size: 0.69rem;
 }
 .local-test-strip p strong {
-  color: #35526b;
+  color: #356b56;
   margin-right: 8px;
 }
 .local-test-strip .text-button {
@@ -171,8 +171,8 @@
 }
 .account-storage-note {
   margin-bottom: 26px;
-  border: 1px solid #d6e5ef;
-  background: #f5fbff;
+  border: 1px solid #e6e8dd;
+  background: #fbfbf9;
   border-radius: 12px;
   padding: 18px 22px;
 }
@@ -186,15 +186,15 @@
   margin-bottom: 0;
 }
 .preview-account-step {
-  border: 1px solid #c8def2;
+  border: 1px solid #d1e9e0;
   padding: 16px 18px;
   border-radius: 11px;
-  background: #eaf4ff;
+  background: #f6f6f3;
   margin-bottom: 20px;
 }
 .preview-account-step p {
   font-size: 0.84rem;
-  color: #3e5a70;
+  color: #3e705d;
   margin-bottom: 13px;
 }
 @media (max-width: 1050px) {

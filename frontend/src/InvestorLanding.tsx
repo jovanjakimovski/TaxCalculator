@@ -1,6 +1,7 @@
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
 import type { Language } from "./reportStore";
-import { ReportIllustration } from "./ReportView";
+import { ReportPreview } from "./ReportPreview";
+import { Icon } from "./Icon";
 import { DEV_PROFILE } from "./appProfile";
 import "./investor-journey.css";
 
@@ -144,6 +145,7 @@ export function InvestorLanding({
   headingRef,
 }: Actions) {
   const tr = (en: string, mk: string) => (language === "mk" ? mk : en);
+  const [dragging, setDragging] = useState(false);
   return (
     <>
       <section className="hero investor-hero">
@@ -164,16 +166,16 @@ export function InvestorLanding({
             </h1>
             <p className="hero-lead">
               {tr(
-                "Investing in U.S. stocks through Interactive Brokers? Turn your USD sales, dividends, and interest into a clear MKD tax report to help prepare your UJP filing.",
-                "Инвестирате во американски акции преку Interactive Brokers? Претворете ги USD продажбите, дивидендите и каматата во јасен даночен извештај во MKD за подготовка на пријавата за УЈП.",
+                "Turn your IBKR statement into a clear monthly MKD report. Review your trades, income, and exchange rates before preparing your UJP filing.",
+                "Претворете го IBKR изводот во јасен месечен MKD извештај. Проверете ги трансакциите, приходите и курсевите пред подготовката за УЈП.",
               )}
             </p>
             <div className="investor-upload-card">
               <div className="upload-card-heading">
                 <strong>
                   {tr(
-                    "Start with your investment platform",
-                    "Започнете со вашата инвестициска платформа",
+                    "Add your investment statement",
+                    "Додајте го инвестицискиот извод",
                   )}
                 </strong>
                 <span>{tr("FREE PREVIEW", "БЕСПЛАТЕН ПРЕГЛЕД")}</span>
@@ -198,21 +200,30 @@ export function InvestorLanding({
               <p id="broker-scope" className="broker-scope">
                 <i aria-hidden="true" />
                 {tr(
-                  "Currently supported: IBKR Activity Statement CSV in USD. More platforms will be added in the future.",
-                  "Моментално: IBKR Activity Statement CSV во USD. Во иднина ќе се додадат и други платформи.",
+                  "English Activity Statement · USD base currency",
+                  "Англиски Activity Statement · основна валута USD",
                 )}
               </p>
               <div
-                className="upload-box investor-dropzone"
+                className={`upload-box investor-dropzone${dragging && !busy ? " dragging" : ""}`}
+                onDragEnter={() => setDragging(true)}
+                onDragLeave={(e) => {
+                  if (
+                    !e.currentTarget.contains(e.relatedTarget as Node | null)
+                  ) {
+                    setDragging(false);
+                  }
+                }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
+                  setDragging(false);
                   const file = e.dataTransfer.files[0];
                   if (file && !busy) onFile(file);
                 }}
               >
                 <span className="upload-icon" aria-hidden="true">
-                  ↥
+                  <Icon name="upload" />
                 </span>
                 <div>
                   <strong>
@@ -223,8 +234,8 @@ export function InvestorLanding({
                   </strong>
                   <small>
                     {tr(
-                      "Original Activity Statement · up to 10 MB",
-                      "Оригинален Activity Statement · до 10 MB",
+                      "Original CSV · up to 10 MB",
+                      "Оригинален CSV · до 10 MB",
                     )}
                   </small>
                 </div>
@@ -233,12 +244,16 @@ export function InvestorLanding({
                   disabled={busy}
                   onClick={onChoose}
                 >
-                  {tr("Choose CSV", "Изберете CSV")} →
+                  {tr("Choose CSV", "Изберете CSV")} <Icon name="arrow" />
                 </button>
               </div>
               <div className="upload-card-footer">
                 <span>
-                  {tr("No payment needed to preview", "Без плаќање за преглед")}
+                  <Icon name="check" />
+                  {tr(
+                    "Free check. No payment needed.",
+                    "Бесплатна проверка. Без плаќање.",
+                  )}
                 </span>
                 <button className="text-button" onClick={onExportHelp}>
                   {tr("How to export from IBKR", "Како да извезете од IBKR")} ↗
@@ -246,7 +261,7 @@ export function InvestorLanding({
               </div>
             </div>
             <button
-              className="button outline full hero-sample"
+              className="text-button hero-sample"
               disabled={busy}
               onClick={onSample}
             >
@@ -257,14 +272,21 @@ export function InvestorLanding({
               →
             </button>
             <p className="fine privacy-line">
-              {tr(
-                "Your CSV stays on your device. No IBKR password or account connection required.",
-                "CSV останува на вашиот уред. Не се потребни IBKR лозинка или поврзување со сметката.",
-              )}
+              <Icon name="shield" />
+              <span>
+                {tr(
+                  "Your CSV stays on your device. No IBKR login required.",
+                  "CSV останува на вашиот уред. Не е потребна IBKR најава.",
+                )}
+              </span>
             </p>
           </div>
           <div className="investor-report-preview">
-            <ReportIllustration language={language} />
+            <ReportPreview
+              language={language}
+              busy={busy}
+              onSample={onSample}
+            />
             <div className="report-preview-caption">
               <span>IBKR CSV</span>
               <span aria-hidden="true">→</span>
@@ -311,8 +333,12 @@ export function InvestorLanding({
         </h2>
         <p className="section-lead">
           {tr(
-            "Review your data first. Pay when you’re ready for the complete calculation.",
-            "Прво проверете ги податоците. Платете кога ќе сте подготвени за целосната пресметка.",
+            DEV_PROFILE
+              ? "Review your data first. Generate the report when you’re ready."
+              : "Review your data first. Pay when you’re ready for the complete calculation.",
+            DEV_PROFILE
+              ? "Прво проверете ги податоците. Создајте извештај кога ќе сте подготвени."
+              : "Прво проверете ги податоците. Платете кога ќе сте подготвени за целосната пресметка.",
           )}
         </p>
         <div className="steps">

@@ -55,10 +55,14 @@ export async function saveDraft(file: File) {
   await (await db()).put("draft", { file, created: Date.now() }, "selected");
 }
 export async function loadDraft(): Promise<File | undefined> {
-  const draft = await (await db()).get("draft", "selected");
-  if (draft && Date.now() - draft.created < 86400000) return draft.file;
-  await clearDraft();
-  return undefined;
+  // Keep expiry cleanup in the same transaction as the read so it cannot
+  // delete a statement the user selects while the page is starting up.
+  const transaction = (await db()).transaction("draft", "readwrite");
+  const draft = await transaction.store.get("selected");
+  const valid = draft && Date.now() - draft.created < 86400000;
+  if (draft && !valid) await transaction.store.delete("selected");
+  await transaction.done;
+  return valid ? draft.file : undefined;
 }
 export async function clearDraft() {
   await (await db()).delete("draft", "selected");

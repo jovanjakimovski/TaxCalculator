@@ -16,10 +16,10 @@
 }
 .investor-upload-card {
   background: #fff;
-  border: 1px solid #cde5f4;
+  border: 1px solid #e4e6db;
   border-radius: 18px;
   padding: 22px;
-  box-shadow: 0 12px 35px #2a729512;
+  box-shadow: 0 12px 35px #3d826812;
 }
 .upload-card-heading {
   display: flex;
@@ -44,17 +44,17 @@
   display: grid;
   gap: 7px;
   font-size: 0.74rem;
-  color: #456174;
+  color: #457462;
   font-weight: 600;
 }
 .broker-field select {
   width: 100%;
   min-width: 0;
   padding: 12px 14px;
-  border: 1px solid #b8cddb;
+  border: 1px solid #b8dbce;
   border-radius: 9px;
   color: var(--ink);
-  background: #f9fcfe;
+  background: #fcfcfb;
   font-weight: 700;
   font-size: 0.88rem;
 }
@@ -62,7 +62,7 @@
   font-size: 0.69rem;
   line-height: 1.5;
   margin: 10px 0 17px;
-  color: #496277;
+  color: #497765;
   padding-left: 14px;
   position: relative;
 }
@@ -76,10 +76,10 @@
   top: 6px;
 }
 .investor-dropzone {
-  border: 1px dashed #9cbfda;
+  border: 1px dashed #a3d3c1;
   box-shadow: none;
   border-radius: 10px;
-  background: #f5faff;
+  background: #fbfbf9;
   padding: 14px;
 }
 .investor-dropzone .upload-icon {
@@ -109,7 +109,7 @@
 }
 .upload-card-footer .text-button {
   font-size: 0.69rem;
-  color: #0057b6;
+  color: #3a7c63;
   padding: 3px 0;
 }
 .investor-hero .privacy-line {
@@ -130,7 +130,7 @@
   flex-wrap: wrap;
   gap: 10px;
   font-size: 0.68rem;
-  color: #3e6379;
+  color: #3e7962;
   margin-top: 15px;
 }
 .report-preview-caption span:not([aria-hidden]) {
@@ -141,8 +141,8 @@
   font-weight: 600;
 }
 .investor-proof-strip {
-  background: #f6faff;
-  border-bottom: 1px solid #e4eef5;
+  background: #fbfbfa;
+  border-bottom: 1px solid #eef0e9;
 }
 .investor-proof-strip .container {
   display: grid;
@@ -152,11 +152,11 @@
   padding-bottom: 20px;
   text-align: center;
   font-size: 0.76rem;
-  color: #405c70;
+  color: #40705e;
   font-weight: 500;
 }
 .investor-proof-strip span + span {
-  border-left: 1px solid #d6e5ef;
+  border-left: 1px solid #e6e8dd;
 }
 .investor-steps {
   padding-top: 65px;
@@ -183,7 +183,7 @@
   font-size: 0.85rem;
 }
 .deliverables-section {
-  background: #f6f9fc;
+  background: #fafaf8;
   padding: 55px 0 38px;
 }
 .marketing-section-heading {
@@ -207,12 +207,12 @@
 }
 .deliverable-card {
   padding: 27px;
-  box-shadow: 0 8px 20px #24394e03;
+  box-shadow: 0 8px 20px #244e3e03;
 }
 .deliverable-number {
   display: inline-block;
   color: var(--blue);
-  background: #eaf4ff;
+  background: #f6f6f3;
   border-radius: 10px;
   padding: 9px 13px;
   font-size: 0.77rem;
@@ -230,7 +230,7 @@
 .filing-boundary {
   text-align: center;
   font-size: 0.79rem;
-  color: #536878;
+  color: #53786a;
   max-width: 920px;
   margin: 26px auto 0;
 }
@@ -251,7 +251,7 @@
   font-size: 0.95rem;
 }
 .scope-intro .text-button {
-  color: #0057b6;
+  color: #3a7c63;
 }
 .scope-card {
   padding: 28px 32px;
@@ -265,7 +265,7 @@
 }
 .scope-limit {
   padding-top: 20px;
-  border-top: 1px solid #e3ebf1;
+  border-top: 1px solid #eceee6;
 }
 .scope-limit strong {
   font-size: 0.79rem;
@@ -276,8 +276,8 @@
   color: var(--muted);
 }
 .investor-calculation-banner {
-  border: 1px solid #d1e6f8;
-  background: #eef7ff;
+  border: 1px solid #e7e9e0;
+  background: #f7f8f5;
   gap: 30px;
 }
 .investor-calculation-banner .eyebrow {
@@ -292,7 +292,7 @@
   margin-bottom: 25px;
 }
 .investor-faq details {
-  border-bottom: 1px solid #dce6ed;
+  border-bottom: 1px solid #e7e9e0;
   padding: 19px 0;
 }
 .investor-faq summary {
@@ -318,19 +318,19 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #71828f;
+  color: #718f84;
   font-size: 0.73rem;
   font-weight: 600;
 }
 .journey-progress li:not(:last-child)::after {
   content: "";
   height: 1px;
-  background: #c7d8e4;
+  background: #c7e4d9;
   width: 42px;
   margin: 0 15px 0 7px;
 }
 .journey-progress li > span {
-  border: 1px solid #c6d7e3;
+  border: 1px solid #c6e3d8;
   width: 25px;
   height: 25px;
   display: inline-flex;
@@ -342,12 +342,12 @@
   font-size: 0.66rem;
 }
 .journey-progress li.current {
-  color: #0064d4;
+  color: #449073;
 }
 .journey-progress li.current > span {
-  background: #0075f6;
+  background: var(--brand);
   color: #fff;
-  border-color: #0075f6;
+  border-color: var(--brand);
 }
 .journey-progress li.completed {
   color: #13764e;
@@ -369,8 +369,8 @@
   flex-wrap: wrap;
 }
 .unlock-explainer {
-  background: #eaf4ff;
-  border: 1px solid #cfe3f6;
+  background: #f6f6f3;
+  border: 1px solid #e6e8dd;
   padding: 21px 24px;
   border-radius: 13px;
   margin-top: 22px;
@@ -385,17 +385,17 @@
   margin-bottom: 13px;
 }
 .unlock-explainer .text-button {
-  color: #005bbb;
+  color: #3c7f65;
   font-size: 0.8rem;
 }
 .unlock-guidance {
   font-size: 0.85rem;
-  color: #315570;
+  color: #346d57;
   margin-bottom: 15px;
 }
 .purchase-card .credit-explainer {
-  border-top: 1px solid #e2eaf0;
-  border-bottom: 1px solid #e2eaf0;
+  border-top: 1px solid #ebede5;
+  border-bottom: 1px solid #ebede5;
   padding: 12px 0;
   font-size: 0.75rem;
   margin: 15px 0;
@@ -409,12 +409,12 @@
 }
 .purchase-card .balance .text-button {
   font-size: 0.7rem;
-  color: #005bbb;
+  color: #3c7f65;
 }
 .guide-page {
   padding-top: 36px;
   padding-bottom: 60px;
-  background: #f2f7fc;
+  background: #f8f8f6;
 }
 .guide-page-header {
   max-width: 760px;
@@ -431,7 +431,7 @@
   justify-content: space-between;
   gap: 30px;
   align-items: center;
-  background: #dff0ff;
+  background: #f1f2ec;
   padding: 28px 32px;
   border-radius: 16px;
   margin-top: 30px;
@@ -468,8 +468,8 @@
   top: 8px;
   width: 29px;
   height: 29px;
-  background: #eaf4ff;
-  color: #0064ce;
+  background: #f6f6f3;
+  color: #428c70;
   border-radius: 8px;
   display: grid;
   place-items: center;

@@ -1,5 +1,5 @@
 .calculation-guide {
-  color: var(--ink, #112b45);
+  color: var(--ink, #1c3a2f);
 }
 .guide-intro {
   max-width: 760px;
@@ -10,7 +10,7 @@
   line-height: 1.15;
 }
 .guide-intro p {
-  color: #45617b;
+  color: #457b66;
   line-height: 1.7;
 }
 .guide-flow {
@@ -23,15 +23,15 @@
 }
 .guide-flow li {
   padding: 20px;
-  border: 1px solid #cce2f0;
+  border: 1px solid #d2eae1;
   border-radius: 18px;
-  background: #eff8fe;
+  background: #f7f8f5;
   display: grid;
   gap: 8px;
   align-content: start;
 }
 .guide-flow li > span {
-  color: #0074ed;
+  color: #4ca180;
   font-weight: 800;
   font-size: 0.8rem;
 }
@@ -39,7 +39,7 @@
   line-height: 1.35;
 }
 .guide-flow small {
-  color: #45617b;
+  color: #457b66;
   line-height: 1.5;
 }
 .guide-chapters {
@@ -47,7 +47,7 @@
   gap: 12px;
 }
 .guide-chapters > details {
-  border: 1px solid #d7e3ed;
+  border: 1px solid #e5e7dd;
   border-radius: 18px;
   background: #fff;
   overflow: hidden;
@@ -71,22 +71,22 @@
   position: absolute;
   right: 22px;
   font-size: 1.4rem;
-  color: #0074ed;
+  color: #4ca180;
   font-weight: 500;
 }
 .guide-chapters > details[open] > summary::after {
   content: "−";
 }
 .guide-chapters > details > summary:hover {
-  background: #f3f9ff;
+  background: #fafaf8;
 }
 .guide-chapters > details > summary:focus-visible {
-  outline: 3px solid #0074ed;
+  outline: 3px solid #4ca180;
   outline-offset: -3px;
   border-radius: 16px;
 }
 .guide-chapter-number {
-  color: #0074ed;
+  color: #4ca180;
   font-size: 0.85rem;
   flex-shrink: 0;
 }
@@ -96,7 +96,7 @@
 }
 .guide-chapter-body p {
   margin: 0 0 16px;
-  color: #45617b;
+  color: #457b66;
 }
 .guide-chapter-body h3 {
   margin: 0 0 10px;
@@ -109,7 +109,7 @@
 }
 .guide-equation {
   border-radius: 16px;
-  background: #eff8fe;
+  background: #f7f8f5;
   padding: 20px;
   display: flex;
   align-items: center;
@@ -121,19 +121,19 @@
   display: grid;
   gap: 5px;
   font-size: 0.8rem;
-  color: #45617b;
+  color: #457b66;
 }
 .guide-equation strong {
   font-size: clamp(1.15rem, 2vw, 1.65rem);
-  color: #112b45;
+  color: #1c3a2f;
 }
 .guide-equation > b {
   font-size: 1.4rem;
-  color: #0074ed;
+  color: #4ca180;
 }
 .guide-example {
-  border: 1px solid #b7d8ee;
-  background: #f3faff;
+  border: 1px solid #c2e3d6;
+  background: #fafaf8;
   padding: 22px;
   border-radius: 18px;
   margin: 22px 0;
@@ -156,9 +156,9 @@
 }
 .guide-scenario-label select {
   width: 100%;
-  color: #112b45;
+  color: #1c3a2f;
   background: #fff;
-  border: 1px solid #b5cede;
+  border: 1px solid #b6ddce;
   border-radius: 12px;
   padding: 12px;
   font: inherit;
@@ -178,11 +178,11 @@
   gap: 5px;
 }
 .guide-example-result small {
-  color: #45617b;
+  color: #457b66;
   line-height: 1.4;
 }
 .guide-example-result strong {
-  color: #006bdc;
+  color: #469677;
   font-size: 1.7rem;
 }
 .guide-chapter-body .guide-callout {
@@ -190,18 +190,18 @@
   background: #fffbe0;
   border-left: 3px solid #f3d82b;
   border-radius: 0 12px 12px 0;
-  color: #394b5e;
+  color: #395e50;
 }
 .guide-mini-equation,
 .guide-formula {
   padding: 18px;
   border-radius: 14px;
-  background: #eff8fe;
+  background: #f7f8f5;
   font-weight: 700;
 }
 .guide-mini-equation small {
   display: block;
-  color: #45617b;
+  color: #457b66;
   font-weight: 400;
   margin-top: 8px;
   line-height: 1.6;
@@ -210,7 +210,7 @@
   font-size: 0.8rem;
 }
 .guide-actual-total {
-  background: #0074ed;
+  background: #4ca180;
   color: #fff;
   border-radius: 14px;
   padding: 18px;
@@ -226,14 +226,14 @@
   margin: 6px 0 0;
 }
 .guide-sample-breakdown {
-  border: 1px dashed #a6cbe5;
+  border: 1px dashed #b1daca;
   border-radius: 14px;
   padding: 20px;
   margin: 20px 0 0;
 }
 .guide-sample-breakdown small {
   font-size: 0.8rem;
-  color: #45617b;
+  color: #457b66;
 }
 .guide-workbook-sheets {
   margin: 0;
@@ -244,7 +244,7 @@
   margin-top: 12px;
 }
 .guide-workbook-sheets dd {
-  color: #45617b;
+  color: #457b66;
   margin: 2px 0 0;
   font-size: 0.9rem;
 }
@@ -262,7 +262,7 @@
   display: grid;
   gap: 3px;
   padding: 16px 16px 16px 58px;
-  border: 1px solid #d7e3ed;
+  border: 1px solid #e5e7dd;
   border-radius: 14px;
 }
 .guide-filing-steps li::before {
@@ -275,16 +275,16 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  color: #0074ed;
-  background: #e5f3fd;
+  color: #4ca180;
+  background: #f3f4ee;
   font-weight: 750;
 }
 .guide-filing-steps li span {
-  color: #45617b;
+  color: #457b66;
   font-size: 0.9rem;
 }
 .report-context {
-  color: #45617b;
+  color: #457b66;
   line-height: 1.7;
   max-width: 900px;
   margin: 0 0 22px;
@@ -296,7 +296,7 @@
   flex-wrap: wrap;
   margin: 24px 0;
   padding: 20px;
-  background: #eff8fe;
+  background: #f7f8f5;
   border-radius: 16px;
 }
 .report-total-explainer > div {
@@ -305,14 +305,14 @@
 }
 .report-total-explainer > div > span {
   font-size: 0.8rem;
-  color: #45617b;
+  color: #457b66;
 }
 .report-total-explainer > div > strong {
   font-size: 1.15rem;
 }
 .report-total-explainer > b {
   font-weight: 400;
-  color: #0074ed;
+  color: #4ca180;
 }
 .report-total-explainer > button {
   margin-left: auto;
@@ -324,10 +324,10 @@
   margin-top: 20px;
 }
 .monthly-audit {
-  border: 1px solid #b9d9ed;
+  border: 1px solid #c3e3d7;
   border-radius: 16px;
   margin-top: 24px;
-  background: #f6fbff;
+  background: #fbfbfa;
 }
 .monthly-audit > summary {
   cursor: pointer;
@@ -348,14 +348,14 @@
 }
 .monthly-audit-body select {
   padding: 10px;
-  border: 1px solid #b5cede;
+  border: 1px solid #b6ddce;
   border-radius: 10px;
   background: #fff;
-  color: #112b45;
+  color: #1c3a2f;
   font: inherit;
 }
 .monthly-audit-body > p {
-  color: #45617b;
+  color: #457b66;
   font-size: 0.85rem;
   line-height: 1.6;
 }
@@ -366,11 +366,11 @@
   margin-top: 16px;
 }
 .monthly-audit-total > span {
-  color: #45617b;
+  color: #457b66;
   font-size: 0.85rem;
 }
 .monthly-audit-total strong {
-  color: #112b45;
+  color: #1c3a2f;
 }
 @media (max-width: 800px) {
   .guide-flow {

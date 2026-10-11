@@ -9,16 +9,16 @@ const workbookTranslations = {
       calculation: "Calculation",
       summary: "Summary",
     },
-    rateHeaders: ["DATE", "MKD PER USD"],
+    rateHeaders: ["DATE", "RATE"],
     transactionHeaders: [
       "DATE",
       "T-1 DATE",
       "SYMBOL",
-      "ASSET CLASS",
+      "FINANCIAL INSTRUMENT",
       "QUANTITY",
-      "PURCHASE PRICE",
-      "SALE PRICE / SHARE",
-      "SALE PRICE TOTAL",
+      "PURCHASE VALUE",
+      "SALE VALUE / SHARE",
+      "SALE VALUE",
       "REALIZED P/L",
       "CURRENCY",
       "EXCHANGE RATE",
@@ -37,7 +37,7 @@ const workbookTranslations = {
     },
     summaryTitle: "SUMMARY",
     summaryTotal: "TOTAL",
-    summaryHeaders: ["DATE", "TOTAL (MKD)", "TAX (MKD)"],
+    summaryHeaders: ["Month", "Total", "Tax"],
   },
   mk: {
     sheets: {
@@ -47,16 +47,16 @@ const workbookTranslations = {
       calculation: "Пресметка",
       summary: "Резиме",
     },
-    rateHeaders: ["ДАТУМ", "КУРС (МКД ЗА 1 USD)"],
+    rateHeaders: ["ДАТУМ", "КУРС"],
     transactionHeaders: [
       "ДАТУМ",
       "ДАТУМ НА КУРСОТ (Т-1)",
       "СИМБОЛ",
-      "ВИД НА ФИНАНСИСКИ ИНСТРУМЕНТ",
+      "ФИНАНСИСКИ ИНСТРУМЕНТ",
       "КОЛИЧИНА",
-      "КУПОВНА ЦЕНА",
-      "ПРОДАЖНА ЦЕНА ПО АКЦИЈА",
-      "ВКУПЕН ИЗНОС НА ПРОДАЖБАТА",
+      "КУПОВНА ВРЕДНОСТ",
+      "ПРОДАЖНА ВРЕДНОСТ ПО АКЦИЈА",
+      "ПРОДАЖНА ВРЕДНОСТ",
       "ОСТВАРЕНА ДОБИВКА ИЛИ ЗАГУБА",
       "ВАЛУТА",
       "ДЕВИЗЕН КУРС",
@@ -75,7 +75,7 @@ const workbookTranslations = {
     },
     summaryTitle: "РЕЗИМЕ",
     summaryTotal: "ВКУПНО",
-    summaryHeaders: ["ДАТУМ", "ВКУПНО (МКД)", "ДАНОК (МКД)"],
+    summaryHeaders: ["Месец", "Вкупно", "Данок"],
   },
 };
 
@@ -492,15 +492,17 @@ async function buildTaxWorkbook({
         formula(groupFormula, Math.max(group.amount, 0)),
       ]);
     }
-    const interestRow = calculationRows.length + 1;
-    calculationRows.push([
-      month,
-      "Interest",
-      formula(
-        `=MAX(0,SUMPRODUCT((LEFT(${transactionDates},7)=A${interestRow})*(${transactionAssets}="${labels.assets.interest}")*${transactionMkd}))`,
-        Math.max(interestPnl, 0),
-      ),
-    ]);
+    if (interestRows.length > 0) {
+      const interestRow = calculationRows.length + 1;
+      calculationRows.push([
+        month,
+        "Interest",
+        formula(
+          `=MAX(0,SUMPRODUCT((LEFT(${transactionDates},7)=A${interestRow})*(${transactionAssets}="${labels.assets.interest}")*${transactionMkd}))`,
+          Math.max(interestPnl, 0),
+        ),
+      ]);
+    }
     const securitiesTaxablePnl = [...securitiesBySymbol.values()].reduce(
       (sum, group) => sum + Math.max(group.amount, 0),
       0,
@@ -518,12 +520,13 @@ async function buildTaxWorkbook({
     };
   });
   const calculationEndRow = calculationRows.length;
+  const calculationFormulaEndRow = Math.max(calculationEndRow, 2);
   const monthlySummaryRows = monthlySummary.map((month, index) => {
     const row = index + 3;
     return [
       month.month,
       formula(
-        `=SUMIF(${calculationSheetReference}$A$2:$A$${calculationEndRow},A${row},${calculationSheetReference}$C$2:$C$${calculationEndRow})`,
+        `=SUMIF(${calculationSheetReference}$A$2:$A$${calculationFormulaEndRow},A${row},${calculationSheetReference}$C$2:$C$${calculationFormulaEndRow})`,
         month.taxablePnlMkd,
       ),
       formula(`=B${row}*${config.securitiesTaxRate / 100}`, month.taxMkd),

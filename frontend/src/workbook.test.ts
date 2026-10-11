@@ -79,7 +79,7 @@ it("exports five translated sheets with intact original data and updated purchas
     );
     const transactions = output.book.Sheets[names[language][2]];
     expect(transactions.F1.v).toBe(
-      language === "mk" ? "КУПОВНА ЦЕНА" : "PURCHASE PRICE",
+      language === "mk" ? "КУПОВНА ВРЕДНОСТ" : "PURCHASE VALUE",
     );
     expect(transactions.A2.f).toContain(`'${names[language][0]}'!G6`);
     expect(transactions.K2.f).toContain(`'${names[language][1]}'!`);
@@ -102,8 +102,8 @@ it("exports five translated sheets with intact original data and updated purchas
     const summary = output.book.Sheets[names[language][4]];
     expect(rows(summary)[1]).toEqual(
       language === "mk"
-        ? ["ДАТУМ", "ВКУПНО (МКД)", "ДАНОК (МКД)"]
-        : ["DATE", "TOTAL (MKD)", "TAX (MKD)"],
+        ? ["Месец", "Вкупно", "Данок"]
+        : ["Month", "Total", "Tax"],
     );
     expect(XLSX.utils.decode_range(summary["!ref"]!).e.c).toBe(2);
     expect(summary.B3.f).toContain(`'${names[language][3]}'!$C$2:`);
@@ -219,7 +219,7 @@ it("converts every event to MKD before netting, and reconciles grouped cells wit
   expect(output.calculationResult.estimatedTaxMkd).toBe(185);
 });
 
-it("retains zero months and Interest entries when no interest exists across a year boundary", async () => {
+it("retains zero months in Summary without inserting absent Interest groups", async () => {
   const csvText = [
     'Statement,Data,Period,"December 15, 2024 - February 10, 2025"',
     trade("SYN", "2024-12-20", 1),
@@ -232,10 +232,7 @@ it("retains zero months and Interest entries when no interest exists across a ye
   );
   expect(rows(output.book.Sheets.Calculation).slice(1)).toEqual([
     ["2024-12", "SYN", 60],
-    ["2024-12", "Interest", 0],
-    ["2025-01", "Interest", 0],
     ["2025-02", "SYN", 120],
-    ["2025-02", "Interest", 0],
   ]);
   expect(output.book.Sheets.Summary.B4.v).toBe(0);
   expect(output.book.Sheets.Summary.C6.v).toBe(18);

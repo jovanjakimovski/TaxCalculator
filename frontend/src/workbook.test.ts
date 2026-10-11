@@ -88,15 +88,14 @@ it("exports five translated sheets with intact original data and updated purchas
     expect(XLSX.utils.decode_range(calculation["!ref"]!).e.c).toBe(2);
     expect(calculation.C1.v).toContain(
       language === "mk"
-        ? "ОСТВАРЕНА ДОБИВКА ИЛИ ЗАГУБА"
+        ? "РЕАЛИЗИРАНА ДОБИВКА ИЛИ ЗАГУБА"
         : "REALIZED PROFIT OR LOSS",
     );
     expect(calculation.C1.v).toContain(
       language === "mk"
-        ? "MAX(0, АКЦИИ + ОПЦИИ + ДИВИДЕНДИ)"
-        : "MAX(0, STOCKS + OPTIONS + DIVIDENDS)",
+        ? "ФОРМУЛА: (АКЦИИ+ОПЦИИ+ДИВИДЕНДИ) + ИНТЕРЕС"
+        : "FORMULA: ((STOCK+OPTIONS+DIVIDEND)+interest)",
     );
-    expect(calculation.C1.v).toContain("Interest: MAX(0,");
     expect(calculation.C2.f).toContain(`'${names[language][2]}'!$L$2:`);
     expect(calculation.C2.z).toBe("#,##0.00");
     const summary = output.book.Sheets[names[language][4]];

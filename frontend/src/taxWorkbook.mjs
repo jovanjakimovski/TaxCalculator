@@ -27,7 +27,7 @@ const workbookTranslations = {
     calculationHeaders: [
       "MONTH",
       "SYMBOL",
-      "REALIZED PROFIT OR LOSS (MKD)\nMAX(0, STOCKS + OPTIONS + DIVIDENDS)\nInterest: MAX(0, MONTHLY NET INTEREST)",
+      "REALIZED PROFIT OR LOSS (MKD)\nFORMULA: ((STOCK+OPTIONS+DIVIDEND)+interest)",
     ],
     assets: {
       stocks: "Stocks",
@@ -65,7 +65,7 @@ const workbookTranslations = {
     calculationHeaders: [
       "МЕСЕЦ",
       "СИМБОЛ",
-      "ОСТВАРЕНА ДОБИВКА ИЛИ ЗАГУБА (МКД)\nMAX(0, АКЦИИ + ОПЦИИ + ДИВИДЕНДИ)\nInterest: MAX(0, МЕСЕЧНА НЕТО КАМАТА)",
+      "РЕАЛИЗИРАНА ДОБИВКА ИЛИ ЗАГУБА (МКД)\nФОРМУЛА: (АКЦИИ+ОПЦИИ+ДИВИДЕНДИ) + ИНТЕРЕС",
     ],
     assets: {
       stocks: "Акции",
@@ -78,6 +78,36 @@ const workbookTranslations = {
     summaryHeaders: ["Месец", "Вкупно", "Данок"],
   },
 };
+
+function writeWorkbookWithCalculationHeader(workbook, sheetName, header) {
+  const output = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  // The writer drops rich-text runs, so preserve both font styles in the XLSX XML.
+  const archive = XLSX.CFB.read(new Uint8Array(output), { type: "array" });
+  const sheetNumber = workbook.SheetNames.indexOf(sheetName) + 1;
+  const sheetPath = `/xl/worksheets/sheet${sheetNumber}.xml`;
+  const sheet = XLSX.CFB.find(archive, sheetPath);
+  const xml = new TextDecoder().decode(Uint8Array.from(sheet.content));
+  const escapeXml = (text) =>
+    text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  const [title, formulaText] = header.split("\n");
+  const richText =
+    `<is><r><rPr><b/><sz val="11"/><color rgb="FFFFFFFF"/><rFont val="Calibri"/></rPr><t>${escapeXml(title)}</t></r>` +
+    `<r><rPr><b val="0"/><i/><sz val="9"/><color rgb="FFD9E2F3"/><rFont val="Calibri"/></rPr><t xml:space="preserve">\n${escapeXml(formulaText)}</t></r></is>`;
+  const styledXml = xml.replace(
+    /<c\b([^>]*\br="C1"[^>]*)>[\s\S]*?<\/c>/,
+    (_, attributes) =>
+      `<c${attributes.replace(/\s+t="[^"]*"/, "")} t="inlineStr">${richText}</c>`,
+  );
+  if (styledXml === xml) throw new Error("Calculation header cell is missing");
+  sheet.content = new TextEncoder().encode(styledXml);
+  sheet.size = sheet.content.length;
+  const bytes = XLSX.CFB.write(archive, {
+    fileType: "zip",
+    type: "array",
+    compression: true,
+  });
+  return Uint8Array.from(bytes).buffer;
+}
 
 function csvLine(line) {
   const cells = [];
@@ -710,7 +740,7 @@ async function buildTaxWorkbook({
   }
   styleHeader(calculation, 0, 2, wrappedHeaderStyle);
   calculation["!cols"] = [{ wch: 16 }, { wch: 22 }, { wch: 58 }];
-  calculation["!rows"] = [{ hpt: 72 }];
+  calculation["!rows"] = [{ hpt: 54 }];
   for (let row = 1; row < calculationEndRow; row++)
     calculation[`C${row + 1}`].z = "#,##0.00";
   styleHeader(summary, 0, 2, summaryTitleStyle);
@@ -750,7 +780,11 @@ async function buildTaxWorkbook({
   );
   XLSX.utils.book_append_sheet(workbook, summary, labels.sheets.summary);
   return {
-    workbook: XLSX.write(workbook, { bookType: "xlsx", type: "array" }),
+    workbook: writeWorkbookWithCalculationHeader(
+      workbook,
+      labels.sheets.calculation,
+      labels.calculationHeaders[2],
+    ),
     calculationResult,
     exchangeRates: fullRates,
   };

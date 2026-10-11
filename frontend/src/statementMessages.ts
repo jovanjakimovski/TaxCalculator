@@ -7,8 +7,6 @@ const mk: Record<string, string> = {
     "Доделените акции и стекнувањето права се исклучени. Проверете го даночниот третман одделно.",
   "Corporate actions are not independently reconstructed. Check their effect on broker cost basis and realized P/L.":
     "Корпоративните настани не се реконструираат одделно. Проверете го ефектот врз основицата и реализираната добивка/загуба од брокерот.",
-  "This report supports USD securities, dividends, and interest only. Non-USD income was found.":
-    "Извештајот поддржува само USD хартии од вредност, дивиденди и камата. Пронајден е приход во друга валута.",
   "Short positions are not supported by the current Excel report. A closing purchase or opening short sale was found.":
     "Кратките позиции не се поддржани од постојниот Excel. Пронајдено е затворање со купување или отворање кратка продажба.",
   "Unsupported trade columns. Include realized P/L and cost basis in your IBKR Activity Statement.":

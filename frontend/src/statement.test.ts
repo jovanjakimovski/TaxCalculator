@@ -17,10 +17,13 @@ describe("statement preflight", () => {
     expect(() => inspectStatement('a,b,c\n"unfinished')).toThrow(/malformed/);
     expect(() => inspectStatement("symbol,quantity\nABC,12")).toThrow(/period/);
   });
-  it("blocks currencies that the preserved workbook would misinterpret", () => {
-    expect(
-      inspectStatement(sample.replaceAll("USD", "EUR")).errors.join(" "),
-    ).toMatch(/USD/);
+  it("accepts mixed-currency statements and previews only USD income", () => {
+    const fixture = sample.replaceAll("\r\n", "\n");
+    const p = inspectStatement(fixture + "\n" + fixture.replaceAll("USD", "EUR"));
+    expect(p.errors).toEqual([]);
+    expect(p.stocks).toBe(2);
+    expect(p.dividends).toBe(1);
+    expect(p.interest).toBe(2);
   });
   it("blocks short closes, invalid numbers and moved columns", () => {
     expect(

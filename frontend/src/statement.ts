@@ -44,8 +44,7 @@ const number = (value: string | undefined) =>
   value.trim() !== "" &&
   Number.isFinite(Number(value.replaceAll(",", "")));
 
-// This gate intentionally preserves the original workbook parser and rules.
-// Unsupported inputs are rejected rather than rewritten or silently omitted.
+// Check the statement structure and row layouts before generating the workbook.
 export function inspectStatement(csvText: string): StatementPreview {
   if (new TextEncoder().encode(csvText).length > MAX_FILE_BYTES)
     throw new Error("The statement exceeds the 10 MB limit.");
@@ -121,6 +120,7 @@ export function inspectStatement(csvText: string): StatementPreview {
         );
         return;
       }
+      if (r[4] !== "USD") return;
       if (
         !tradeHeader ||
         tradeHeader[4] !== "Currency" ||
@@ -131,10 +131,6 @@ export function inspectStatement(csvText: string): StatementPreview {
       )
         errors.add(
           "Unsupported trade columns. Include realized P/L and cost basis in your IBKR Activity Statement.",
-        );
-      if (r[4] !== "USD")
-        errors.add(
-          "This report supports USD securities, dividends, and interest only. Non-USD income was found.",
         );
       checkDate(r[6], i + 1);
       if (![7, 8, 10, 12, 13].every((c) => number(r[c])))
@@ -152,13 +148,8 @@ export function inspectStatement(csvText: string): StatementPreview {
     }
     if (
       ["Interest", "Dividends", "Withholding Tax"].includes(r[0]) &&
-      r[2] &&
-      !r[2].startsWith("Total")
+      r[2] === "USD"
     ) {
-      if (r[2] !== "USD")
-        errors.add(
-          "This report supports USD securities, dividends, and interest only. Non-USD income was found.",
-        );
       checkDate(r[3], i + 1);
       if (!number(r[5]))
         errors.add(`Row ${i + 1}: an income amount is missing or invalid.`);

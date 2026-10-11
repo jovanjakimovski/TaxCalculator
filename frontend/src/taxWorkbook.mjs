@@ -249,7 +249,8 @@ async function buildTaxWorkbook({
     if (
       row[0] === "Trades" &&
       row[2] === "Order" &&
-      ["Stocks", "Equity and Index Options"].includes(row[3])
+      ["Stocks", "Equity and Index Options"].includes(row[3]) &&
+      row[4] === "USD"
     ) {
       const quantity = numericCell(row[7]);
       if (quantity > 0) return;

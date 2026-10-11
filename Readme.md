@@ -192,7 +192,7 @@ Known limitations
 
 - Calculation rules are fixed to the user-confirmed model. This is a filing aid and estimate; users review the results and are responsible for their return.
 - Foreign withholding is not used as a tax credit in this estimate.
-- USD stocks and options, dividends, and interest are supported. Non-USD securities/income, short positions, withholding reversals, unsupported column layouts, multiline fields, and oversized Excel formulas are rejected before charging. Forex, grants, deposits, and unrealized gains are excluded. Review broker basis after corporate actions.
+- USD stocks and options, dividends, and interest are supported. Mixed-currency statements are accepted; non-USD transactions remain in Original Statement and are excluded from calculations. Short positions, withholding reversals, unsupported column layouts, multiline fields, and oversized Excel formulas are rejected before charging. Forex, grants, deposits, and unrealized gains are excluded. Review broker basis after corporate actions.
 - NBRNM availability and response format are external dependencies.
 
 ## New app flow and local storage

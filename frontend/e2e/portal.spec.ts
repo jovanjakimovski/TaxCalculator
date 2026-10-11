@@ -164,23 +164,25 @@ test("upload, test credit, durable report and free repeat access", async ({
   ).toBeVisible();
   expect(consumes).toBe(1);
 });
-test("reject unsupported currency without using a credit", async ({ page }) => {
+test("accepts mixed-currency statements without using a credit for preview", async ({
+  page,
+}) => {
   let consumes = 0;
   page.on("request", (req) => {
     if (req.url().endsWith("/reports/consume")) consumes++;
   });
   await page.goto("/");
   await page.getByLabel("IBKR statement CSV").setInputFiles({
-    name: "eur.csv",
+    name: "mixed-currency.csv",
     mimeType: "text/csv",
-    buffer: Buffer.from(csv.replaceAll("USD", "EUR")),
+    buffer: Buffer.from(
+      (csv + "\n" + csv.replaceAll("USD", "EUR")).replaceAll("\r\n", "\n"),
+    ),
   });
   await expect(
-    page.getByRole("heading", { name: "Your statement needs attention." }),
+    page.getByRole("heading", { name: "Your records are ready to review." }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: /Unlock report/ })).toHaveCount(
-    0,
-  );
+  await expect(page.getByRole("button", { name: /Unlock report/ })).toBeVisible();
   expect(consumes).toBe(0);
 });
 
@@ -338,7 +340,7 @@ test("updates an older saved Excel layout and language for free with retained ra
         };
       }),
   );
-  expect(updated).toEqual({ ...original, workbookVersion: 5, language: "mk" });
+  expect(updated).toEqual({ ...original, workbookVersion: 6, language: "mk" });
   expect(consumes).toBe(1);
   expect(rateRequests).toBe(1);
 });

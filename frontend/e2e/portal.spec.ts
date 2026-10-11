@@ -338,7 +338,7 @@ test("updates an older saved Excel layout and language for free with retained ra
         };
       }),
   );
-  expect(updated).toEqual({ ...original, workbookVersion: 3, language: "mk" });
+  expect(updated).toEqual({ ...original, workbookVersion: 4, language: "mk" });
   expect(consumes).toBe(1);
   expect(rateRequests).toBe(1);
 });

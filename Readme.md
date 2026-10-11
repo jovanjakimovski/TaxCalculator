@@ -100,22 +100,21 @@ The UI paywall is an honest-user access control, not tamper-proof DRM. Browser c
 
 ## Report Output
 
-The UI and CLI use the same CSV-only workbook generator and produce the same four-sheet Excel workbook. UI tax settings do not affect the export. Apart from the official exchange-rate endpoint, workbook contents are derived from the uploaded CSV and fixed assumptions:
+The UI and CLI use the same CSV-only workbook generator and produce the same five-sheet Excel workbook. UI tax settings do not affect the export. Apart from the official exchange-rate endpoint, workbook contents are derived from the uploaded CSV and fixed assumptions:
 
-Choose English or Macedonian in the header. If an existing report was built in the other language, use its language preparation button before downloading (free; retained rates are reused). The CLI also accepts `--language mk`. Generated sheet names, headings, and asset-class labels are translated; the original IBKR Activity Statement rows remain unchanged.
+Choose English or Macedonian in the header. If an existing report was built in the other language, use its language preparation button before downloading. Older saved reports show **Prepare updated Excel · free** to regenerate the current layout using their retained rates, without another credit or a new report ID. The CLI also accepts `--language mk`. Generated sheet names, headings, and asset-class labels are translated; the original IBKR Activity Statement rows remain unchanged.
 
-| Sheet | Contents |
-|---|---|
-| **Activity Statement** | Original IBKR Activity Statement |
-| **Conversion Rates** | One transaction-date column and the official USD-MKD rate for that date |
-| **Calculation** | Securities/options, interest, and gross dividends, with formulas referencing the original statement and exchange-rate sheet; dividend amounts use the existing Realized P/L columns, and option contract symbols remain visible |
-| **Summary** | Monthly realized P/L by asset class, total taxable P/L after same-symbol stock/options/dividend offsets, and estimated tax |
+1. **Original Statement / Оригинален Извештај** retains the original IBKR Activity Statement rows.
+2. **Exchange Rate List / Курсна Листа** lists transaction dates and their official USD/MKD rates.
+3. **Realized Transactions / Реализирани трансакции** contains securities/options, interest, and gross dividends, with formulas referencing the original statement and rate sheet. Option contract symbols remain visible; the Macedonian purchase-cost heading is **Куповна цена**.
+4. **Calculation / Пресметка** has three columns: month, symbol, and realized profit or loss in MKD. Stocks, options, and gross dividends are netted within the same month and underlying symbol, with negative groups contributing zero. **Interest** is a separate monthly symbol, also floored at zero. The amount heading includes the grouping formula.
+5. **Summary / Резиме** has three columns: date, total monthly taxable amount, and tax. The final tax total remains rounded upward to the next whole MKD.
 
 ## Tax Calculation Notes
 
 - Positive gains use the full gain as the taxable base regardless of holding period.
 - Dividend tax and Summary P/L use gross dividends only. Foreign withholding is excluded from the taxable amount and Summary.
-- Summary asset-class columns show unoffset monthly realized P/L, including losses. Total taxable P/L combines stock, options, and dividend results only when they share the same underlying symbol and month. IBKR option symbols such as `HIMS 16JAN26 60 C` and `HIMS  260116C00060000` are matched to underlying symbol `HIMS`; losses are not carried forward or applied against interest.
+- The Calculation sheet combines stock, options, and gross dividend results only when they share the same underlying symbol and month, then floors each group at zero. Summary totals the resulting positive groups and the separate nonnegative monthly interest group. IBKR option symbols such as `HIMS 16JAN26 60 C` and `HIMS  260116C00060000` are matched to underlying symbol `HIMS`; losses are not carried forward or applied against interest.
 - Gross dividends are included separately. Interest is netted within each month and only positive monthly interest is taxable; negative interest does not reduce other categories.
 - The estimates and loss-treatment assumptions should be confirmed against current UJP rules. This tool is not a filing system or legal/tax advice.
 - IBKR realized P/L and basis values are used; the app does not independently rebuild FIFO cost basis.
@@ -204,7 +203,7 @@ The site is designed for Macedonian investors with USD portfolios on Interactive
 
 The dedicated Log in page explains verified email accounts, recovery, credits, and browser-local report files. Visitors can use samples, calculation guidance and CSV previews without signing in; hosted account mode requires sign-in before purchase or unlocking. Cognito's hosted page handles signup, verification and forgotten passwords. The selected 1/2/3-report package is retained locally across redirects, and safe OIDC return state restores the preview or account page. Expired sessions renew with an existing refresh token; without one, users sign in again. The visible local test workspace is separate from signed-in accounts and remains available for `LOCAL-TEST-CODE` testing. Real login needs the Cognito values in `.env.example` and the setup in `AWS_DEPLOY.md`; the UI clearly explains when the provider is not connected.
 
-Reports include summary cards, monthly tax chart/table, searchable sales ledger, dividends, interest, rate evidence, and a filing checklist. **Print / Save PDF** prints the summary, monthly table, and checklist; the complete ledger stays in the Excel download. The existing Excel generator, workbook structure, offsets, rates convention, and CLI export are unchanged.
+Reports include summary cards, monthly tax chart/table, searchable sales ledger, dividends, interest, rate evidence, and a filing checklist. **Print / Save PDF** prints the summary, monthly table, and checklist; the complete ledger stays in the five-sheet Excel download. The UI and CLI share the generator and use the same monthly offsets and rate convention.
 
 The calculation guide is free to read before purchase and also appears in each report. English/Macedonian explanations cover broker-reported realized USD results, T-1 conversion, month-and-underlying-symbol offsets, gross dividends and foreign withholding, separate positive monthly net interest, and upward rounding of the final tax total. Interactive synthetic examples compare an option loss in the same group, another symbol, and another month. The monthly drilldown explains saved figures by symbol; it does not supply figures to or modify the original generator. Expanded guidance and drilldowns are omitted from the compact printable summary.
 
@@ -232,6 +231,6 @@ PostgreSQL integration tests require Docker. They cover bundles, duplicate payme
 
 To verify a private CSV locally without committing it, set `PRIVATE_STATEMENT_PATH` and optionally `PRIVATE_RATE_API` and `PRIVATE_EXPORT_PATH`, then run the frontend test command. The opt-in test logs neither statement contents nor account figures.
 
-For a complete browser check against the running local Docker app, set `PRIVATE_STATEMENT_PATH` and run `npm --prefix frontend run test:smoke`. It uses `http://localhost:8188` and `LOCAL-TEST-CODE` by default; override with `SMOKE_APP_URL` and `SMOKE_TEST_CODE` for an isolated test stack. It verifies real exchange rates, one credit debit, the unchanged workbook cells, reload/re-download, and that API requests contain no CSV contents. It writes private exports under the ignored `Excel/` folder. Never point this test at live paid accounts.
+For a complete browser check against the running local Docker app, set `PRIVATE_STATEMENT_PATH` and run `npm --prefix frontend run test:smoke`. It uses `http://localhost:8188` and `LOCAL-TEST-CODE` by default; override with `SMOKE_APP_URL` and `SMOKE_TEST_CODE` for an isolated test stack. It verifies real exchange rates, one credit debit, matching CLI workbook cells, the five-sheet layout, reload/re-download, and that API requests contain no CSV contents. It writes private exports under the ignored `Excel/` folder. Never point this test at live paid accounts.
 
 Before a public release run `python scripts/check-deployment.py .env` with production secrets available in the environment, then complete the live sign-in/payment/refund and backup-restore checks in `AWS_DEPLOY.md`. Local tests cannot establish that unconfigured external merchant/auth accounts work.

@@ -45,11 +45,14 @@ try {
   await download.saveAs(output);
   const book = XLSX.read(readFileSync(output), { cellStyles: true });
   assert.deepEqual(book.SheetNames, [
-    "Activity Statement",
-    "Conversion Rates",
+    "Original Statement",
+    "Exchange Rate List",
+    "Realized Transactions",
     "Calculation",
     "Summary",
   ]);
+  assert.equal(XLSX.utils.decode_range(book.Sheets.Summary["!ref"]).e.c, 2);
+  assert.equal(XLSX.utils.decode_range(book.Sheets.Calculation["!ref"]).e.c, 2);
   const rateRequest = serviceRequests.find((request) =>
     request.url().includes("/tax/exchange-rates"),
   );
@@ -114,7 +117,7 @@ try {
     preferCSSPageSize: true,
   });
   console.log(
-    "Built app smoke passed: private CSV, live rates, real credit debit, unchanged workbook cells, reload/re-download, and no CSV in API requests.",
+    "Built app smoke passed: private CSV, live rates, real credit debit, matching CLI workbook cells, reload/re-download, and no CSV in API requests.",
   );
 } finally {
   await browser.close();

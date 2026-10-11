@@ -344,8 +344,8 @@ export function CalculationGuide({ language, report }: Props) {
             </p>
             <p>
               {tr(
-                "Each month’s tax is 10% of that month’s taxable base. The app sums the unrounded monthly tax amounts and rounds the final total upward to the next whole MKD, matching the unchanged Excel Summary sheet. The two decimals displayed in tables are for readability; they are not rounded before calculating the final total.",
-                "Данокот за секој месец е 10% од неговата даночна основица. Апликацијата ги собира незаокружените месечни износи на данок и го заокружува конечниот збир нагоре до следен цел MKD, како во непроменетиот Excel лист „Резиме“. Двете децимали во табелите служат за читливост; износите не се заокружуваат пред пресметката на конечниот збир.",
+                "Each month’s tax is 10% of that month’s taxable base. The app sums the unrounded monthly tax amounts and rounds the final total upward to the next whole MKD, matching the Excel Summary sheet. The two decimals displayed in tables are for readability; they are not rounded before calculating the final total.",
+                "Данокот за секој месец е 10% од неговата даночна основица. Апликацијата ги собира незаокружените месечни износи на данок и го заокружува конечниот збир нагоре до следен цел MKD, како во Excel листот „Резиме“. Двете децимали во табелите служат за читливост; износите не се заокружуваат пред пресметката на конечниот збир.",
               )}
             </p>
             <div className="guide-mini-equation">
@@ -415,32 +415,41 @@ export function CalculationGuide({ language, report }: Props) {
                   )}
                 </h3>
                 <dl className="guide-workbook-sheets">
-                  <dt>{tr("Activity Statement", "Извод од IBKR")}</dt>
+                  <dt>{tr("Original Statement", "Оригинален Извештај")}</dt>
                   <dd>
                     {tr(
                       "Your original CSV rows, retained for reconciliation.",
                       "Изворните CSV редови, зачувани за усогласување.",
                     )}
                   </dd>
-                  <dt>{tr("Conversion Rates", "Девизни курсеви")}</dt>
+                  <dt>{tr("Exchange Rate List", "Курсна Листа")}</dt>
                   <dd>
                     {tr(
                       "The USD/MKD rates used by the workbook.",
                       "USD/MKD курсевите што ги користи Excel.",
                     )}
                   </dd>
-                  <dt>{tr("Calculation", "Пресметка")}</dt>
+                  <dt>
+                    {tr("Realized Transactions", "Реализирани трансакции")}
+                  </dt>
                   <dd>
                     {tr(
                       "Transaction-level references, amounts, and conversion formulas.",
                       "Референци, износи и формули за претворање по трансакција.",
                     )}
                   </dd>
+                  <dt>{tr("Calculation", "Пресметка")}</dt>
+                  <dd>
+                    {tr(
+                      "Monthly MKD totals by underlying symbol: stocks + options + gross dividends, with a minimum of zero. Interest is a separate monthly group, also with a minimum of zero.",
+                      "Месечни износи во денари по основен симбол: акции + опции + бруто дивиденди, со минимум нула. Interest е посебна месечна група, исто така со минимум нула.",
+                    )}
+                  </dd>
                   <dt>{tr("Summary", "Резиме")}</dt>
                   <dd>
                     {tr(
-                      "Monthly results, taxable bases, tax, and the rounded final total.",
-                      "Месечни резултати, даночни основици, данок и заокружен конечен збир.",
+                      "Date, total taxable MKD amount, 10% tax, and the rounded final tax total.",
+                      "Датум, вкупен оданочлив износ во денари, 10% данок и заокружен конечен збир на данокот.",
                     )}
                   </dd>
                 </dl>

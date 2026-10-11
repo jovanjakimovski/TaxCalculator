@@ -191,7 +191,7 @@ Before opening to users:
 - Register, verify email, sign in, refresh the page, reset a password, and log out through Cognito on the real HTTPS domain. Confirm credits remain attached to the same account after signing back in.
 - In an isolated payment sandbox, buy each package and confirm exactly 1/2/3 credits arrive from signed webhooks. Repeat webhook delivery; confirm no additional credits. Test full refunds before and after using a credit. Partial refunds require your support policy and do not revoke credits automatically.
 - Switch to the live merchant account, disable all test/anonymous modes, and verify a small live purchase/refund under your account. Browser return URLs do not grant credits.
-- Download the unchanged Excel in both languages and open it in your supported Excel version. Review cached values and formula recalculation against the on-screen figures before relying on workbook recalculation in a filing workflow.
+- Download the five-sheet Excel in both languages and open it in your supported Excel version. Review cached values and formula recalculation against the on-screen figures before relying on workbook recalculation in a filing workflow.
 - Create scheduled encrypted backups for both databases, verify restoration in a separate environment, and configure health/error monitoring. Preserve test evidence and rollback to the previous images if validation fails.
 - Publish your operator identity, support/refund contact, and retention policy for account/payment records, based on your actual business. App copy already explains local CSV processing, estimate limitations, and user filing responsibility.
 

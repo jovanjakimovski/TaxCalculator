@@ -63,11 +63,16 @@ test("generates, exports and reopens a report without any license service", asyn
   expect(downloadPath).toBeTruthy();
   const workbook = XLSX.read(readFileSync(downloadPath!), { type: "buffer" });
   expect(workbook.SheetNames).toEqual([
-    "Activity Statement",
-    "Conversion Rates",
+    "Original Statement",
+    "Exchange Rate List",
+    "Realized Transactions",
     "Calculation",
     "Summary",
   ]);
+  expect(XLSX.utils.decode_range(workbook.Sheets.Summary["!ref"]!).e.c).toBe(2);
+  expect(
+    XLSX.utils.decode_range(workbook.Sheets.Calculation["!ref"]!).e.c,
+  ).toBe(2);
   await page.reload();
   await page.getByRole("button", { name: /My reports/ }).click();
   await page.getByRole("button", { name: "Open", exact: true }).click();

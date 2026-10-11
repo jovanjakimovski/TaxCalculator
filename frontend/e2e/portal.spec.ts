@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import XLSX from "xlsx-js-style";
 const csv = readFileSync(path.resolve("public/sample-ibkr.csv"), "utf8");
 test("recovers from a temporary balance outage without reloading", async ({
   page,
@@ -181,6 +182,165 @@ test("reject unsupported currency without using a credit", async ({ page }) => {
     0,
   );
   expect(consumes).toBe(0);
+});
+
+test("updates an older saved Excel layout and language for free with retained rates", async ({
+  page,
+}) => {
+  let consumes = 0;
+  let rateRequests = 0;
+  page.on("request", (request) => {
+    if (request.url().endsWith("/reports/consume")) consumes++;
+    if (request.url().includes("/tax/exchange-rates?")) rateRequests++;
+  });
+  await page.goto("/");
+  await page.getByLabel("IBKR statement CSV").setInputFiles({
+    name: "legacy-export.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv),
+  });
+  await page.getByLabel("Have a test access code?").fill("LOCAL-TEST-CODE");
+  await page.getByRole("button", { name: "Redeem", exact: true }).click();
+  await expect(page.getByText(/Test credits are available/)).toBeVisible();
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: /Unlock report/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Your investment tax report" }),
+  ).toBeVisible();
+  expect(consumes).toBe(1);
+
+  const legacyBook = XLSX.utils.book_new();
+  for (const name of [
+    "Activity Statement",
+    "Conversion Rates",
+    "Calculation",
+    "Summary",
+  ])
+    XLSX.utils.book_append_sheet(
+      legacyBook,
+      XLSX.utils.aoa_to_sheet([[name]]),
+      name,
+    );
+  const legacyBytes = new Uint8Array(
+    XLSX.write(legacyBook, { bookType: "xlsx", type: "array" }),
+  );
+  const original = await page.evaluate(
+    (bytes) =>
+      new Promise<{
+        id: string;
+        requestId: string;
+        status: string;
+        created: number;
+        result: string;
+        rates: string;
+      }>((resolve, reject) => {
+        const opening = indexedDB.open("taxcalculator-private-reports");
+        opening.onerror = () => reject(opening.error);
+        opening.onsuccess = () => {
+          const db = opening.result;
+          const transaction = db.transaction("reports", "readwrite");
+          const store = transaction.objectStore("reports");
+          const request = store.getAll();
+          let snapshot: {
+            id: string;
+            requestId: string;
+            status: string;
+            created: number;
+            result: string;
+            rates: string;
+          };
+          request.onsuccess = () => {
+            const saved = request.result[0];
+            snapshot = {
+              id: saved.id,
+              requestId: saved.requestId,
+              status: saved.status,
+              created: saved.created,
+              result: JSON.stringify(saved.result),
+              rates: JSON.stringify(saved.exchangeRates),
+            };
+            delete saved.workbookVersion;
+            saved.workbook = new Uint8Array(bytes).buffer;
+            store.put(saved);
+          };
+          transaction.oncomplete = () => {
+            db.close();
+            resolve(snapshot);
+          };
+          transaction.onabort = () => {
+            db.close();
+            reject(transaction.error);
+          };
+        };
+      }),
+    Array.from(legacyBytes),
+  );
+  await page.route("**/api/tax/exchange-rates?*", (route) => route.abort());
+  await page.reload();
+  await page.getByRole("button", { name: /My reports/ }).click();
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Prepare updated Excel · free" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Download Excel/ }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Switch to Macedonian" }).click();
+  const prepare = page.getByRole("button", {
+    name: "Подготви ажуриран Excel · бесплатно",
+  });
+  await prepare.click();
+  await expect(prepare).toHaveCount(0);
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Преземи Excel" }).click();
+  const downloadPath = await (await downloaded).path();
+  const workbook = XLSX.read(readFileSync(downloadPath!), { type: "buffer" });
+  expect(workbook.SheetNames).toEqual([
+    "Оригинален Извештај",
+    "Курсна Листа",
+    "Реализирани трансакции",
+    "Пресметка",
+    "Резиме",
+  ]);
+  expect(XLSX.utils.decode_range(workbook.Sheets["Резиме"]["!ref"]!).e.c).toBe(
+    2,
+  );
+  expect(
+    XLSX.utils.decode_range(workbook.Sheets["Пресметка"]["!ref"]!).e.c,
+  ).toBe(2);
+  const updated = await page.evaluate(
+    () =>
+      new Promise((resolve, reject) => {
+        const opening = indexedDB.open("taxcalculator-private-reports");
+        opening.onerror = () => reject(opening.error);
+        opening.onsuccess = () => {
+          const db = opening.result;
+          const transaction = db.transaction("reports", "readonly");
+          const request = transaction.objectStore("reports").getAll();
+          request.onsuccess = () => {
+            const saved = request.result[0];
+            resolve({
+              id: saved.id,
+              requestId: saved.requestId,
+              status: saved.status,
+              created: saved.created,
+              result: JSON.stringify(saved.result),
+              rates: JSON.stringify(saved.exchangeRates),
+              workbookVersion: saved.workbookVersion,
+              language: saved.language,
+            });
+          };
+          transaction.oncomplete = () => db.close();
+          transaction.onabort = () => {
+            db.close();
+            reject(transaction.error);
+          };
+        };
+      }),
+  );
+  expect(updated).toEqual({ ...original, workbookVersion: 2, language: "mk" });
+  expect(consumes).toBe(1);
+  expect(rateRequests).toBe(1);
 });
 test("lost debit response recovers with original ID at zero balance", async ({
   page,

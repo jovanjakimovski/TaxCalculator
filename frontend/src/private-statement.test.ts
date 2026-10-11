@@ -32,11 +32,16 @@ it.skipIf(!process.env.PRIVATE_STATEMENT_PATH)(
     );
     const book = XLSX.read(output.workbook);
     expect(book.SheetNames).toEqual([
-      "Activity Statement",
-      "Conversion Rates",
+      "Original Statement",
+      "Exchange Rate List",
+      "Realized Transactions",
       "Calculation",
       "Summary",
     ]);
+    expect(XLSX.utils.decode_range(book.Sheets.Summary["!ref"]!).e.c).toBe(2);
+    expect(XLSX.utils.decode_range(book.Sheets.Calculation["!ref"]!).e.c).toBe(
+      2,
+    );
     expect(output.calculationResult.monthlySummary.length).toBe(12);
     for (const name of book.SheetNames)
       for (const cell of Object.values(book.Sheets[name])) {

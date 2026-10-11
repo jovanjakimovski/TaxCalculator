@@ -2,6 +2,7 @@ import { openDB } from "idb";
 import type { WorkpaperResult, ExchangeRate } from "./taxWorkbook.mjs";
 import type { StatementPreview } from "./statement";
 export type Language = "en" | "mk";
+export const CURRENT_WORKBOOK_VERSION = 2;
 export type SavedReport = {
   id: string;
   owner: string;
@@ -10,6 +11,7 @@ export type SavedReport = {
   file: File;
   language: Language;
   workbook: ArrayBuffer;
+  workbookVersion?: number;
   result: WorkpaperResult;
   exchangeRates: ExchangeRate[];
   preview: StatementPreview;

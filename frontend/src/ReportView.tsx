@@ -2,6 +2,7 @@ import { Icon } from "./Icon";
 import { statementMessage } from "./statementMessages";
 import { useEffect, useRef, useState } from "react";
 import type { Language, SavedReport } from "./reportStore";
+import { CURRENT_WORKBOOK_VERSION } from "./reportStore";
 import { CalculationGuide } from "./CalculationGuide";
 import { explainMonthlyGroups } from "./reportGroups";
 const money = (value: number, currency = "MKD", language: Language = "en") =>
@@ -36,6 +37,8 @@ export function ReportView({
 }: Props) {
   const tr = (en: string, mk: string) => (language === "mk" ? mk : en);
   const r = report.result;
+  const needsWorkbookUpdate =
+    (report.workbookVersion ?? 1) < CURRENT_WORKBOOK_VERSION;
   const [tab, setTab] = useState("overview");
   const [page, setPage] = useState(0);
   const [query, setQuery] = useState("");
@@ -295,7 +298,7 @@ export function ReportView({
             <div className="report-actions">
               <button
                 className="button primary"
-                disabled={busy}
+                disabled={busy || needsWorkbookUpdate}
                 onClick={onDownload}
               >
                 <Icon name="download" />
@@ -308,19 +311,32 @@ export function ReportView({
               >
                 {tr("Print / Save PDF", "Печати / Зачувај PDF")}
               </button>
-              {report.language !== language && (
+              {(needsWorkbookUpdate || report.language !== language) && (
                 <button
                   className="button secondary"
                   disabled={busy}
                   onClick={onLanguage}
                 >
-                  {tr("Prepare English Excel", "Подготви македонски Excel")}
+                  {needsWorkbookUpdate
+                    ? tr(
+                        "Prepare updated Excel · free",
+                        "Подготви ажуриран Excel · бесплатно",
+                      )
+                    : tr("Prepare English Excel", "Подготви македонски Excel")}
                 </button>
               )}
               <button className="text-button" disabled={busy} onClick={onNew}>
                 {tr("New statement", "Нов извод")} →
               </button>
             </div>
+            {needsWorkbookUpdate && (
+              <p className="fine">
+                {tr(
+                  "Prepare the updated Excel layout for free using this report’s saved exchange rates.",
+                  "Подгответе го ажурираниот Excel бесплатно со зачуваните девизни курсеви на овој извештај.",
+                )}
+              </p>
+            )}
             <details className="fine report-export-help">
               <summary>
                 {tr(

@@ -27,6 +27,7 @@ import { statementMessage } from "./statementMessages";
 import { buildReport } from "./buildReport";
 import {
   clearDraft,
+  CURRENT_WORKBOOK_VERSION,
   forgetReport,
   getReport,
   listReports,
@@ -362,6 +363,7 @@ export default function Portal() {
           file: current.file,
           language,
           workbook: output.workbook,
+          workbookVersion: CURRENT_WORKBOOK_VERSION,
           result: output.calculationResult,
           exchangeRates: output.exchangeRates,
           preview: current.preview,
@@ -432,6 +434,7 @@ export default function Portal() {
       file,
       language,
       workbook: output.workbook,
+      workbookVersion: CURRENT_WORKBOOK_VERSION,
       result: output.calculationResult,
       exchangeRates: rates,
       preview,
@@ -440,7 +443,7 @@ export default function Portal() {
     });
     setView("report");
   }
-  async function changeReportLanguage() {
+  async function prepareWorkbook() {
     if (!report) return;
     const output = await buildReport({
       csvText: (await report.file.text()).replace(/^\uFEFF/, ""),
@@ -452,9 +455,13 @@ export default function Portal() {
       ...report,
       language,
       workbook: output.workbook,
+      workbookVersion: CURRENT_WORKBOOK_VERSION,
       result: output.calculationResult,
     };
-    if (updated.owner !== "sample") await saveReport(updated);
+    if (updated.owner !== "sample") {
+      await saveReport(updated);
+      setHistory(await listReports(updated.owner));
+    }
     setReport(updated);
   }
   function download() {
@@ -1266,8 +1273,8 @@ export default function Portal() {
             onPrint={() => window.print()}
             onLanguage={() =>
               void run(
-                tr("Preparing workbook language…", "Подготовка на јазикот…"),
-                changeReportLanguage,
+                tr("Preparing Excel…", "Подготовка на Excel…"),
+                prepareWorkbook,
               )
             }
             onNew={() => setView("home")}

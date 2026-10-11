@@ -115,4 +115,4 @@ To exercise a running dev container stack against actual exchange rates:
 E2E_APP_PROFILE=dev E2E_APP_URL=http://127.0.0.1:8080 E2E_LIVE_RATES=true npm run test:e2e
 ```
 
-The dev browser suite covers desktop/mobile generation, a four-sheet Excel download, saved-report reopening, zero license requests even with an unavailable license endpoint, and rejection of unsupported currency. Production browser tests still exercise account/credit behavior separately. AWS provisioning itself requires an authenticated AWS identity and must be verified in the target account.
+The dev browser suite covers desktop/mobile generation, a five-sheet Excel download, saved-report reopening, zero license requests even with an unavailable license endpoint, and rejection of unsupported currency. Production browser tests still exercise account/credit behavior separately. AWS provisioning itself requires an authenticated AWS identity and must be verified in the target account.

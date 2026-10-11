@@ -12,6 +12,7 @@
 /.env.*
 !/.env.example
 /Excel/
+/outputs/
 /Car-Vertial-Sample-Report/
 /Car-Vertical-Sample-Report/
 /frontend/test-results/

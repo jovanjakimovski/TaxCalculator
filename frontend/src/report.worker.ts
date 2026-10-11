@@ -4,7 +4,7 @@ import XLSX from "xlsx-js-style";
 self.onmessage = async ({ data }) => {
   try {
     const output = await calculateTaxWorkbook(data);
-    // Leave the export untouched, but reject unsupported Excel formula sizes before billing.
+    // Reject formulas that Excel cannot open before returning the export.
     const book = XLSX.read(output.workbook, {
       type: "array",
       cellFormula: true,
@@ -19,7 +19,7 @@ self.onmessage = async ({ data }) => {
           cell.f.length > 8192
         )
           throw new Error(
-            "This portfolio exceeds the current Excel formula limit. Export a shorter statement period. No credit has been used.",
+            "This portfolio exceeds the current Excel formula limit. Export a shorter statement period.",
           );
       }
     self.postMessage({ output }, { transfer: [output.workbook] });

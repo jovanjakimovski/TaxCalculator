@@ -12,71 +12,93 @@ if (!input)
   throw new Error(
     "Set PRIVATE_STATEMENT_PATH to a local CSV. The file is never sent to a server.",
   );
+const csvText = readFileSync(input, "utf8").replace(/^\uFEFF/, "");
+const suppliedRates = process.env.SMOKE_RATE_DATA_PATH
+  ? JSON.parse(readFileSync(process.env.SMOKE_RATE_DATA_PATH, "utf8"))
+  : undefined;
+const outputDir = path.resolve("../Excel");
+mkdirSync(outputDir, { recursive: true });
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage();
-  const errors = [],
-    serviceRequests = [];
+  const errors = [];
+  const serviceRequests = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("request", (request) => {
     if (request.url().includes("/api/")) serviceRequests.push(request);
   });
-  await page.goto(base);
-  await page.getByLabel("IBKR statement CSV").setInputFiles(input);
-  await page
-    .getByRole("heading", { name: "Your records are ready to review." })
-    .waitFor();
-  await page
-    .getByLabel("Have a test access code?")
-    .fill(process.env.SMOKE_TEST_CODE ?? "LOCAL-TEST-CODE");
-  await page.getByRole("button", { name: "Redeem", exact: true }).click();
-  await page.getByText(/Test credits are available/).waitFor();
-  await page.getByRole("checkbox").check();
-  await page.getByRole("button", { name: /Unlock report/ }).click();
-  await page
-    .getByRole("heading", { name: "Your investment tax report" })
-    .waitFor({ timeout: 60_000 });
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: /Download Excel/ }).click();
-  const download = await downloadPromise;
-  const outputDir = path.resolve("../Excel");
-  mkdirSync(outputDir, { recursive: true });
-  const output = path.join(outputDir, "verified-built-app-export.xlsx");
-  await download.saveAs(output);
-  const book = XLSX.read(readFileSync(output), { cellStyles: true });
-  assert.deepEqual(book.SheetNames, [
-    "Original Statement",
-    "Exchange Rate List",
-    "Realized Transactions",
-    "Calculation",
-    "Summary",
-  ]);
-  assert.equal(XLSX.utils.decode_range(book.Sheets.Summary["!ref"]).e.c, 2);
-  assert.equal(XLSX.utils.decode_range(book.Sheets.Calculation["!ref"]).e.c, 2);
-  const rateRequest = serviceRequests.find((request) =>
-    request.url().includes("/tax/exchange-rates"),
-  );
-  assert.ok(rateRequest);
-  const response = await fetch(rateRequest.url());
-  assert.ok(response.ok);
-  const rates = await response.json();
-  const original = await calculateTaxWorkbook({
-    csvText: readFileSync(input, "utf8").replace(/^\uFEFF/, ""),
-    exchangeRates: rates,
-    exchangeRatesApi: "unused",
-    language: "en",
+  await page.addInitScript(() => {
+    localStorage.setItem("taxcalculator.language", "en");
   });
-  const originalBook = XLSX.read(original.workbook, { cellStyles: true });
+  if (suppliedRates)
+    await page.route("**/api/tax/exchange-rates?*", (route) =>
+      route.fulfill({ json: suppliedRates }),
+    );
+  await page.goto(base);
+  assert.equal(
+    await page.getByRole("button", { name: /Log in|Unlock|Redeem/ }).count(),
+    0,
+  );
+  assert.equal(await page.getByRole("checkbox").count(), 0);
+  await page.getByLabel("IBKR Activity Statement CSV").setInputFiles(input);
+  const rateResponsePromise = page.waitForResponse((response) =>
+    response.url().includes("/tax/exchange-rates?"),
+  );
+  await page.getByRole("button", { name: "Calculate", exact: true }).click();
+  const rateResponse = await rateResponsePromise;
+  assert.ok(rateResponse.ok(), "Exchange rates could not be loaded");
+  const rates = await rateResponse.json();
+  await page.getByRole("heading", { name: "Results", exact: true }).waitFor({
+    timeout: 120_000,
+  });
+
   const hash = (value) =>
     createHash("sha256").update(JSON.stringify(value)).digest("hex");
-  for (const name of book.SheetNames)
-    assert.equal(
-      hash(book.Sheets[name]),
-      hash(originalBook.Sheets[name]),
-      `Workbook sheet differs: ${name}`,
+  let englishBook;
+  for (const language of ["en", "mk"]) {
+    await page.getByLabel("Excel document language").selectOption(language);
+    const downloadPromise = page.waitForEvent("download");
+    await page
+      .getByRole("button", { name: "Export Excel", exact: true })
+      .click();
+    const download = await downloadPromise;
+    const output = path.join(
+      outputDir,
+      language === "en"
+        ? "verified-built-app-export.xlsx"
+        : "verified-built-app-export-mk.xlsx",
     );
-  const expected = book.SheetNames.flatMap((sheet) =>
-    Object.entries(book.Sheets[sheet])
+    await download.saveAs(output);
+    const book = XLSX.read(readFileSync(output), { cellStyles: true });
+    const original = await calculateTaxWorkbook({
+      csvText,
+      exchangeRates: rates,
+      exchangeRatesApi: "unused",
+      language,
+    });
+    const originalBook = XLSX.read(original.workbook, { cellStyles: true });
+    assert.deepEqual(book.SheetNames, originalBook.SheetNames);
+    assert.equal(book.SheetNames.length, 5);
+    for (const name of book.SheetNames)
+      assert.equal(
+        hash(book.Sheets[name]),
+        hash(originalBook.Sheets[name]),
+        `Workbook sheet differs: ${name}`,
+      );
+    const summary = book.Sheets[book.SheetNames[4]];
+    const calculation = book.Sheets[book.SheetNames[3]];
+    assert.equal(XLSX.utils.decode_range(summary["!ref"]).e.c, 2);
+    assert.equal(XLSX.utils.decode_range(calculation["!ref"]).e.c, 2);
+    const finalRow = XLSX.utils.decode_range(summary["!ref"]).e.r + 1;
+    assert.equal(
+      summary[`C${finalRow}`].v,
+      original.calculationResult.estimatedTaxMkd,
+    );
+    if (language === "en") englishBook = book;
+  }
+
+  const expected = englishBook.SheetNames.flatMap((sheet) =>
+    Object.entries(englishBook.Sheets[sheet])
       .filter(
         ([address, cell]) =>
           !address.startsWith("!") && cell.f && typeof cell.v === "number",
@@ -87,29 +109,19 @@ try {
     path.join(outputDir, "private-excel-check.json"),
     JSON.stringify(expected),
   );
-  assert.equal(
-    serviceRequests.filter((request) =>
-      request.url().endsWith("/reports/consume"),
-    ).length,
-    1,
-  );
+  assert.equal(serviceRequests.length, 1);
   for (const request of serviceRequests) {
-    assert.ok(!request.postData()?.includes("Trades,"));
+    assert.ok(request.url().includes("/api/tax/exchange-rates?"));
+    assert.equal(request.method(), "GET");
+    assert.equal(request.postData(), null);
     assert.ok(!request.url().includes(path.basename(input)));
   }
-  await page.reload();
-  await page.getByRole("button", { name: /My reports/ }).click();
-  await page.getByRole("button", { name: "Open", exact: true }).click();
-  await page
-    .getByRole("heading", { name: "Your investment tax report" })
-    .waitFor();
-  assert.equal(
-    serviceRequests.filter((request) =>
-      request.url().endsWith("/reports/consume"),
-    ).length,
-    1,
-  );
   assert.deepEqual(errors, []);
+  assert.ok(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  );
   await page.emulateMedia({ media: "print" });
   await page.pdf({
     path: path.join(outputDir, "verified-filing-summary.pdf"),
@@ -117,7 +129,7 @@ try {
     preferCSSPageSize: true,
   });
   console.log(
-    "Built app smoke passed: private CSV, live rates, real credit debit, matching CLI workbook cells, reload/re-download, and no CSV in API requests.",
+    `Built app smoke passed: one-click free calculation, private local CSV, ${suppliedRates ? "supplied" : "live"} rates, matching English and Macedonian workbook cells, and no license or CSV-upload requests.`,
   );
 } finally {
   await browser.close();

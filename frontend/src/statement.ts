@@ -178,7 +178,7 @@ export function inspectStatement(csvText: string): StatementPreview {
     !result.interest
   )
     errors.add(
-      "No supported realized sales, dividends, or interest were found. No credit will be used.",
+      "No supported USD realized sales, dividends, or interest were found.",
     );
   warnings.add(
     "Foreign withholding is shown for review and is not deducted from estimated tax.",

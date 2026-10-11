@@ -10,7 +10,7 @@ export function buildReport(
       worker.terminate();
       reject(
         new Error(
-          "Report generation timed out. No credit has been used. Try again.",
+          "Report generation timed out. Try again.",
         ),
       );
     }, 120_000);
@@ -26,7 +26,7 @@ export function buildReport(
       finish();
       reject(
         new Error(
-          "Could not prepare the report. No credit has been used. Refresh and try again.",
+          "Could not prepare the report. Refresh and try again.",
         ),
       );
     };

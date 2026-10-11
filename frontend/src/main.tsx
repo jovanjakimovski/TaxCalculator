@@ -1,11 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import "./portal.css";
-import Portal from "./Portal";
-import "./brand.css";
+import "./beginner.css";
+import BeginnerApp from "./BeginnerApp";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <Portal />
+    <BeginnerApp />
   </StrictMode>,
 );

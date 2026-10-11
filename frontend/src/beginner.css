@@ -1,0 +1,607 @@
+@import "@fontsource/dm-sans/400.css";
+@import "@fontsource/dm-sans/500.css";
+@import "@fontsource/dm-sans/600.css";
+@import "@fontsource/dm-sans/700.css";
+@import "@fontsource/space-grotesk/500.css";
+
+:root {
+  font-family: "DM Sans", Arial, sans-serif;
+  color: #203c34;
+  background: #faf9f5;
+  font-synthesis: none;
+  color-scheme: light;
+  --brand: #175544;
+  --line: #dfe4d9;
+  --muted: #627169;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+button,
+select {
+  touch-action: manipulation;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid #418b6f;
+  outline-offset: 4px;
+}
+button,
+select {
+  color: inherit;
+}
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+.beginner-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.beginner-container {
+  width: min(100% - 48px, 1000px);
+  margin-inline: auto;
+}
+.beginner-header {
+  border-bottom: 1px solid var(--line);
+}
+.beginner-header-inner {
+  min-height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.beginner-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--brand);
+  text-decoration: none;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.4rem;
+  letter-spacing: -0.8px;
+}
+.beginner-brand .brand-mark {
+  width: 39px;
+  height: 39px;
+  flex-shrink: 0;
+}
+.beginner-brand span span {
+  font-weight: 500;
+}
+.beginner-brand sup {
+  margin-left: 5px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.58rem;
+  letter-spacing: 0.3px;
+}
+.beginner-ui-language {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 10px 29px 10px 12px;
+  font-size: 0.8rem;
+  min-height: 42px;
+}
+.beginner-main {
+  flex: 1;
+  padding-top: 54px;
+  padding-bottom: 32px;
+}
+.beginner-intro {
+  max-width: 740px;
+  margin-bottom: 32px;
+}
+.beginner-eyebrow {
+  color: var(--brand);
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.beginner-intro h1 {
+  font-family: "Space Grotesk", "DM Sans", sans-serif;
+  font-weight: 500;
+  font-size: clamp(1.9rem, 4.6vw, 2.8rem);
+  line-height: 1.15;
+  letter-spacing: -1.3px;
+  margin-bottom: 16px;
+}
+.beginner-intro > p:last-child {
+  color: var(--muted);
+  line-height: 1.7;
+  margin-bottom: 0;
+}
+.beginner-upload-card {
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 35px #173f3505;
+}
+.beginner-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.beginner-card-heading h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0;
+}
+.beginner-free {
+  color: var(--brand);
+  background: #eef5dd;
+  border-radius: 100px;
+  padding: 6px 11px;
+  font-size: 0.71rem;
+  font-weight: 600;
+}
+.beginner-dropzone {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  padding: 28px 22px;
+  border: 1px dashed #b6c6ac;
+  border-radius: 12px;
+  background: #fafbf6;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.beginner-dropzone.dragging {
+  border-color: var(--brand);
+  background: #edf4df;
+}
+.beginner-dropzone.selected {
+  border-style: solid;
+}
+.beginner-upload-icon {
+  display: grid;
+  place-items: center;
+  width: 49px;
+  height: 49px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  color: var(--brand);
+  background: #edf1e4;
+}
+.beginner-upload-icon .icon {
+  width: 25px;
+  height: 25px;
+}
+.beginner-file-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.beginner-file-copy strong {
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.beginner-file-copy > span {
+  font-size: 0.77rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.beginner-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 11px 18px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 0.87rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.beginner-button .icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.beginner-primary {
+  color: #fff;
+  background: var(--brand);
+}
+.beginner-primary:hover:not(:disabled) {
+  background: #103e32;
+}
+.beginner-secondary {
+  color: var(--brand);
+  background: #fff;
+  border-color: #c9d5c2;
+}
+.beginner-secondary:hover {
+  background: #f2f5eb;
+}
+.beginner-upload-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 21px;
+}
+.beginner-upload-actions p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.77rem;
+  margin-bottom: 0;
+  line-height: 1.6;
+}
+.beginner-upload-actions p .icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.beginner-upload-actions .beginner-primary {
+  min-width: 162px;
+}
+.beginner-status {
+  font-size: 0.83rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.beginner-status:not(:empty) {
+  margin-top: 20px;
+}
+.beginner-error {
+  padding: 17px 20px;
+  margin-top: 20px;
+  margin-bottom: 0;
+  border: 1px solid #e3beb6;
+  border-radius: 10px;
+  background: #fff4ef;
+  color: #8a302b;
+  white-space: pre-line;
+  line-height: 1.6;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.beginner-results {
+  margin-top: 42px;
+  scroll-margin-top: 24px;
+}
+.beginner-results-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.beginner-results-heading .beginner-eyebrow {
+  font-size: 0.66rem;
+  margin-bottom: 10px;
+}
+.beginner-results-heading h2 {
+  font-family: "Space Grotesk", "DM Sans", sans-serif;
+  font-size: 1.8rem;
+  letter-spacing: -0.7px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+.beginner-results-heading h2:focus {
+  outline: none;
+}
+.beginner-results-heading p:last-child {
+  color: var(--muted);
+  font-size: 0.81rem;
+  margin-bottom: 0;
+}
+.beginner-export-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.beginner-export-controls label {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.beginner-export-controls > div {
+  display: flex;
+  gap: 9px;
+}
+.beginner-export-controls select {
+  min-height: 46px;
+  padding: 10px 27px 10px 12px;
+  background: #fff;
+  border: 1px solid #c9d5c2;
+  border-radius: 9px;
+  font-size: 0.85rem;
+}
+.beginner-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 25px;
+}
+.beginner-metrics article {
+  padding: 24px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.beginner-metrics article > span {
+  font-size: 0.81rem;
+  color: var(--muted);
+}
+.beginner-metrics strong {
+  display: block;
+  font-family: "Space Grotesk", "DM Sans", sans-serif;
+  font-size: clamp(1.5rem, 3.8vw, 2.15rem);
+  font-weight: 500;
+  margin-top: 14px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.7px;
+  overflow-wrap: anywhere;
+}
+.beginner-metrics small {
+  font-family: "DM Sans", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+.beginner-metrics .beginner-tax-metric {
+  background: var(--brand);
+  color: #d5ee83;
+  border-color: var(--brand);
+}
+.beginner-metrics .beginner-tax-metric > span {
+  color: #e1ead7;
+}
+.beginner-tax-metric small {
+  color: #e1ead7;
+}
+.beginner-table-wrap {
+  overflow-x: auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+}
+.beginner-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.beginner-table-wrap caption {
+  text-align: left;
+  padding: 20px 24px;
+  color: var(--brand);
+  font-weight: 600;
+}
+.beginner-table-wrap th,
+.beginner-table-wrap td {
+  padding: 14px 24px;
+  border-top: 1px solid #e8ecdf;
+  text-align: right;
+}
+.beginner-table-wrap th:first-child {
+  text-align: left;
+}
+.beginner-table-wrap thead {
+  background: #f5f7ef;
+  color: var(--muted);
+  font-size: 0.77rem;
+}
+.beginner-table-wrap th {
+  font-weight: 500;
+}
+.beginner-table-wrap tbody tr:hover {
+  background: #f9fbf4;
+}
+.beginner-table-wrap tfoot {
+  background: #f5f7ef;
+  font-weight: 700;
+}
+.beginner-table-wrap tfoot th {
+  font-weight: 700;
+}
+.beginner-scope {
+  margin-top: 16px;
+  margin-bottom: 0;
+  max-width: 830px;
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.75;
+}
+.beginner-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.beginner-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ffffff65;
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: beginner-spin 0.8s linear infinite;
+}
+@keyframes beginner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 680px) {
+  .beginner-container {
+    width: min(100% - 36px, 1000px);
+  }
+  .beginner-header-inner {
+    min-height: 74px;
+    gap: 12px;
+  }
+  .beginner-brand {
+    font-size: 1.13rem;
+    gap: 8px;
+  }
+  .beginner-brand .brand-mark {
+    width: 32px;
+    height: 32px;
+  }
+  .beginner-ui-language {
+    font-size: 0.73rem;
+    padding-left: 9px;
+    padding-right: 20px;
+  }
+  .beginner-main {
+    padding-top: 34px;
+  }
+  .beginner-intro {
+    margin-bottom: 24px;
+  }
+  .beginner-intro > p:last-child {
+    font-size: 0.9rem;
+  }
+  .beginner-upload-card {
+    padding: 20px;
+  }
+  .beginner-card-heading {
+    margin-bottom: 18px;
+    gap: 9px;
+  }
+  .beginner-card-heading h2 {
+    font-size: 0.86rem;
+  }
+  .beginner-free {
+    font-size: 0.65rem;
+    padding-inline: 9px;
+  }
+  .beginner-dropzone {
+    padding: 20px 16px;
+    gap: 13px;
+    flex-wrap: wrap;
+  }
+  .beginner-upload-icon {
+    width: 42px;
+    height: 42px;
+  }
+  .beginner-file-copy {
+    flex-basis: calc(100% - 55px);
+  }
+  .beginner-file-copy strong {
+    font-size: 0.87rem;
+  }
+  .beginner-file-copy > span {
+    font-size: 0.73rem;
+  }
+  .beginner-dropzone > button {
+    width: 100%;
+  }
+  .beginner-upload-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .beginner-upload-actions p {
+    font-size: 0.73rem;
+  }
+  .beginner-results-heading {
+    display: block;
+  }
+  .beginner-export-controls {
+    margin-top: 23px;
+  }
+  .beginner-export-controls > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .beginner-export-controls select {
+    width: 100%;
+    min-width: 0;
+  }
+  .beginner-export-controls .beginner-button {
+    padding-inline: 11px;
+    font-size: 0.8rem;
+  }
+  .beginner-metrics {
+    gap: 12px;
+  }
+  .beginner-metrics article {
+    padding: 19px 16px;
+  }
+  .beginner-metrics article > span {
+    font-size: 0.73rem;
+    line-height: 1.5;
+    display: block;
+  }
+  .beginner-metrics strong {
+    font-size: clamp(1.05rem, 4.6vw, 1.8rem);
+  }
+  .beginner-metrics small {
+    display: block;
+    margin-top: 5px;
+  }
+  .beginner-table-wrap table {
+    font-size: 0.77rem;
+  }
+  .beginner-table-wrap th,
+  .beginner-table-wrap td {
+    padding: 13px 14px;
+  }
+  .beginner-table-wrap caption {
+    padding: 17px 14px;
+  }
+}
+@media (max-width: 380px) {
+  .beginner-brand sup {
+    display: none;
+  }
+  .beginner-container {
+    width: calc(100% - 28px);
+  }
+  .beginner-upload-card {
+    padding: 16px;
+  }
+  .beginner-table-wrap th,
+  .beginner-table-wrap td {
+    padding-inline: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .beginner-spinner {
+    animation: none;
+  }
+  .beginner-dropzone {
+    transition: none;
+  }
+}

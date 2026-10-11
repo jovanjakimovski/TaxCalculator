@@ -13,8 +13,14 @@ const mk: Record<string, string> = {
     "Неподдржани колони за трансакции. Вклучете реализирана добивка/загуба и основица во IBKR Activity Statement.",
   "A withholding reversal was found. The current Excel report cannot reconcile this adjustment; review it manually.":
     "Пронајдена е корекција на задржан данок. Постојниот Excel не може да ја усогласи; проверете рачно.",
-  "No supported realized sales, dividends, or interest were found. No credit will be used.":
-    "Нема поддржани реализирани продажби, дивиденди или камата. Нема да се потроши кредит.",
+  "No supported USD realized sales, dividends, or interest were found.":
+    "Нема поддржани реализирани продажби, дивиденди или камата во USD.",
+  "Report generation timed out. Try again.":
+    "Подготовката на извештајот траеше предолго. Обидете се повторно.",
+  "Could not prepare the report. Refresh and try again.":
+    "Извештајот не можеше да се подготви. Освежете ја страницата и обидете се повторно.",
+  "This portfolio exceeds the current Excel formula limit. Export a shorter statement period.":
+    "Портфолиото го надминува ограничувањето на Excel за формули. Извезете пократок период.",
   "The statement exceeds the 10 MB limit.":
     "Изводот го надминува ограничувањето од 10 MB.",
   "The CSV is malformed. Upload the original IBKR Activity Statement CSV.":

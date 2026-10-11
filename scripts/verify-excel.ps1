@@ -6,7 +6,7 @@ $taskExcel = $null
 $taskBook = $null
 try {
     $taskPath = (Resolve-Path -LiteralPath $Workbook).Path
-    $taskExpected = Get-Content -Raw -LiteralPath $ExpectedCells | ConvertFrom-Json
+    $taskExpected = Get-Content -Raw -Encoding UTF8 -LiteralPath $ExpectedCells | ConvertFrom-Json
     $taskExcel = New-Object -ComObject Excel.Application
     $taskExcel.Visible = $false
     $taskExcel.DisplayAlerts = $false

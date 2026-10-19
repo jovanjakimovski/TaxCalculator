@@ -30,7 +30,7 @@ The browser and CLI use the same generator and produce five sheets:
 
 1. **Original Statement / Оригинален Извештај** preserves the original CSV rows, including other currencies.
 2. **Exchange Rate List / Курсна Листа** lists dates and official USD/MKD rates.
-3. **Realized Transactions / Реализирани трансакции** lists USD realized securities/options, gross dividends and interest. Formulas reference the original statement and exchange-rate sheet.
+3. **Realized Transactions / Реализирани трансакции** lists USD realized securities/options, gross dividends and interest. Formulas reference the original statement and exchange-rate sheet. A single additional column shows stock holding days, or a range when several purchase dates are possible. A verified holding period longer than two calendar years is excluded in Calculation, while the original realized result remains visible.
 4. **Calculation / Пресметка** has month, underlying symbol, and realized profit or loss in MKD. The amount header includes a smaller italic formula description. Interest appears only in months containing actual interest events, after the month's securities groups.
 5. **Summary / Резиме** has **Month / Месец**, **Total / Вкупно**, and **Tax / Данок**, with the rounded final tax total below.
 
@@ -50,10 +50,13 @@ npm --prefix frontend run generate-workbook -- "C:\path\to\activity.csv" --langu
 
 - Only USD stocks, options, dividends and interest enter calculations. Mixed-currency statements are accepted; other currencies remain in the original sheet.
 - Securities use IBKR's reported realized P/L and cost basis. FIFO lots and corporate actions are not independently reconstructed.
+- Only stocks receive the requested holding-period exemption. A sale must occur after the two-year purchase anniversary, using calendar years rather than a fixed 730-day count. Options, dividends and interest keep their existing treatment.
+- IBKR ClosedLot rows supply the actual purchase dates and realized results of sold stock lots, including purchases before the statement period. Lot quantities, cost basis and realized P/L must reconcile to their sale Order; Trade execution rows are not counted again. Both standard Trades headers and headers containing Exchange are supported, as are ISO and US-format ClosedLot dates. Each lot's two-year eligibility is checked separately, so a sale containing older and newer shares excludes only the eligible lots' results. Holding days show an exact count or a range across the sold lots.
+- Without ClosedLot details, stock holding days are populated from buy orders only when the statement verifies a zero opening position and reconciles the position history. Multiple possible purchase dates give a holding-day range without assuming FIFO; partial sales retain all possible dates until the position is fully closed. Validated stock splits preserve purchase dates. A compatible Order row with an explicit appended Open Date, Acquisition Date or Purchase Date also supplies the date directly. Unknown opening positions or unsupported position changes remain taxable and have blank holding fields. No manual date entry or historical-file upload is required.
 - Each event is converted to MKD using the official NBRNM USD middle rate for the previous day (T-1), with the latest available prior rate used for weekends and holidays.
 - Stocks, options and gross dividends are netted by underlying symbol within the same month. Negative groups contribute zero; losses do not carry across symbols or months.
 - Interest is netted separately within each month and floored at zero. Negative interest does not reduce securities or dividend income.
-- Foreign withholding is retained in the original statement and is not deducted from this calculation.
+- Foreign withholding, including signed refunds, is retained in the original statement and is not deducted from this calculation. Review figures net refunds against amounts withheld.
 - Tax is 10% of the resulting monthly amount. The final sum is rounded upward to a whole denar.
 
 These are the user-confirmed calculation rules. The app is an estimate and export aid, rather than a filing system.
@@ -62,7 +65,7 @@ These are the user-confirmed calculation rules. The app is an estimate and expor
 
 The selected CSV, calculated figures and workbook stay in browser memory. Reloading clears the current report, so download Excel to keep a copy. Only the interface language preference is stored locally.
 
-Malformed CSVs, unsupported trade column layouts, short positions, withholding reversals, invalid dates/amounts and Excel formulas exceeding the supported length are rejected before generating a report. Forex, deposits, grants and unrealized gains are outside the calculation.
+Malformed CSVs, unsupported trade column layouts, short positions, invalid dates/amounts, unreconciled stock lots and Excel formulas exceeding the supported length are rejected before generating a report. Forex, deposits, grants and unrealized gains are outside the calculation.
 
 Private statements, generated workbooks and audit outputs are ignored by Git and excluded from deployment images. Public fixtures use synthetic data only.
 

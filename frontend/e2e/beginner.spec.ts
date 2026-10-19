@@ -98,6 +98,37 @@ test("Excel document language changes independently without fetching rates again
   expect(rateRequests).toBe(1);
 });
 
+test("lot-detail statements exempt only older shares in the exported report", async ({
+  page,
+}) => {
+  const csvText = [
+    'Statement,Data,Period,"January 1, 2025 - February 28, 2025"',
+    "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code",
+    "Trades,Data,Order,Stocks,USD,SYN,2025-01-10,-,-2,60,60,120,0,-120,0,0,C",
+    "Trades,Data,Trade,Stocks,USD,SYN,2025-01-10,NASDAQ,-2,60,60,120,0,-120,0,0,C",
+    "Trades,Data,ClosedLot,Stocks,USD,SYN,1/9/2023,,1,80,,,,80,-20,,LT",
+    "Trades,Data,ClosedLot,Stocks,USD,SYN,11/12/2024,,1,40,,,,40,20,,ST",
+    'Dividends,Data,USD,1/10/2025,"SYN (Ordinary Dividend)",1',
+    'Withholding Tax,Data,USD,1/10/2025,"SYN (Ordinary Dividend) - US Tax",0.01',
+  ].join("\n");
+  await page.goto("/");
+  await uploadStatement(page, csvText);
+  const calculate = page.getByRole("button", {
+    name: "Calculate",
+    exact: true,
+  });
+  await expect(calculate).toBeEnabled();
+  await calculate.click();
+  await expect(
+    page.getByRole("heading", { name: "Results", exact: true }),
+  ).toBeVisible();
+  const workbook = await exportWorkbook(page);
+  expect(workbook.Sheets.Summary.B3.v).toBe(1260);
+  expect(workbook.Sheets.Summary.C5.v).toBe(126);
+  expect(workbook.Sheets["Realized Transactions"].I2.v).toBe(0);
+  expect(workbook.Sheets["Realized Transactions"].M2.v).toBe("59 – 732");
+});
+
 test("a malformed statement can be replaced and calculated without reloading", async ({
   page,
 }) => {

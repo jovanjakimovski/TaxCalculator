@@ -43,7 +43,7 @@ export function explainMonthlyGroups(
       : null;
     const entry = group(optionMatch ? optionMatch[1].trim() : row.symbol);
     if (isOption) entry.optionsMkd += row.mkdResult;
-    else entry.stocksMkd += row.mkdResult;
+    else entry.stocksMkd += row.taxableMkdResult ?? row.mkdResult;
   }
   for (const row of result.dividends) {
     if (row.date.startsWith(month))

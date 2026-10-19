@@ -1,4 +1,10 @@
 const mk: Record<string, string> = {
+  "Invalid stock purchase date. Use YYYY-MM-DD.":
+    "Невалиден датум на купување акции. Користи ГГГГ-ММ-ДД.",
+  "Stock purchase date cannot be later than its sale date.":
+    "Датумот на купување акции не може да биде по датумот на продажба.",
+  "Conflicting stock purchase dates were found.":
+    "Пронајдени се различни датуми на купување за истата продажба на акции.",
   "Foreign withholding is shown for review and is not deducted from estimated tax.":
     "Странскиот задржан данок се прикажува за проверка и не е одземен од проценетиот данок.",
   "Forex is excluded from the taxable calculation.":

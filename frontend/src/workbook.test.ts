@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import XLSX from "xlsx-js-style";
 import { calculateTaxWorkbook, generateTaxWorkbook } from "./taxWorkbook.mjs";
 import type { ExchangeRate } from "./taxWorkbook.mjs";
+import { explainMonthlyGroups } from "./reportGroups";
 
 const sample = readFileSync(
   new URL("../public/sample-ibkr.csv", import.meta.url),
@@ -79,7 +80,16 @@ it("exports five translated sheets with intact original data and updated purchas
     );
     const transactions = output.book.Sheets[names[language][2]];
     expect(transactions.F1.v).toBe(
-      language === "mk" ? "КУПОВНА ВРЕДНОСТ" : "PURCHASE VALUE",
+      language === "mk" ? "КУПОВНА ЦЕНА" : "PURCHASE PRICE",
+    );
+    expect(transactions.G1.v).toBe(
+      language === "mk" ? "ПРОДАЖНА ЦЕНА ПО АКЦИЈА" : "SALE PRICE PER SHARE",
+    );
+    expect(transactions.H1.v).toBe(
+      language === "mk" ? "ПРОДАЖНА ЦЕНА" : "SALE PRICE",
+    );
+    expect(output.book.Sheets[names[language][1]].B1.v).toBe(
+      language === "mk" ? "КУРС USD-MKD" : "USD-MKD RATE",
     );
     expect(transactions.A2.f).toContain(`'${names[language][0]}'!G6`);
     expect(transactions.K2.f).toContain(`'${names[language][1]}'!`);
@@ -87,15 +97,14 @@ it("exports five translated sheets with intact original data and updated purchas
     const calculation = output.book.Sheets[names[language][3]];
     expect(XLSX.utils.decode_range(calculation["!ref"]!).e.c).toBe(2);
     expect(calculation.C1.v).toContain(
-      language === "mk"
-        ? "РЕАЛИЗИРАНА ДОБИВКА ИЛИ ЗАГУБА"
-        : "REALIZED PROFIT OR LOSS",
+      language === "mk" ? "РЕАЛИЗИРАНА ДОБИВКА (МКД)" : "REALIZED PROFIT (MKD)",
     );
     expect(calculation.C1.v).toContain(
       language === "mk"
-        ? "ФОРМУЛА: (АКЦИИ+ОПЦИИ+ДИВИДЕНДИ) + ИНТЕРЕС"
-        : "FORMULA: ((STOCK+OPTIONS+DIVIDEND)+interest)",
+        ? "(АКЦИИ+ОПЦИИ+ДИВИДЕНДИ) + ИНТЕРЕСТ"
+        : "((STOCK+OPTIONS+DIVIDEND)+interest)",
     );
+    expect(calculation.C1.v).not.toMatch(/FORMULA:|ФОРМУЛА:/);
     expect(calculation.C2.f).toContain(`'${names[language][2]}'!$L$2:`);
     expect(calculation.C2.z).toBe("#,##0.00");
     const summary = output.book.Sheets[names[language][4]];
@@ -136,16 +145,16 @@ it("nets stock, both IBKR option formats and gross dividends by underlying symbo
     expect(rows(calculation).slice(1)).toEqual([
       ["2025-01", "GAIN", 1200],
       ["2025-01", "UNMAPPED", 0],
-      ["2025-01", "Interest", 300],
+      ["2025-01", language === "mk" ? "Интерест" : "Interest", 300],
       ["2025-02", "GAIN", 0],
       ["2025-02", "LOSS", 0],
       ["2025-02", "SYN", 600],
-      ["2025-02", "Interest", 0],
+      ["2025-02", language === "mk" ? "Интерест" : "Interest", 0],
     ]);
     expect(calculation.C2.f).toContain('"GAIN 01FEB25 100 C"');
     expect(calculation.C2.f).toContain('"GAIN  250201C00010000"');
     expect(calculation.C2.f).not.toContain(
-      language === "mk" ? '="Камата"' : '="Interest"',
+      language === "mk" ? '="Интерест"' : '="Interest"',
     );
     const transactionSymbols = rows(output.book.Sheets[names[language][2]])
       .slice(1)
@@ -176,6 +185,247 @@ it("nets Interest independently and floors negative security and interest groups
   expect(output.calculationResult.monthlySummary[0].interestMkd).toBe(180);
   expect(output.calculationResult.monthlySummary[1].interestMkd).toBe(-60);
   expect(output.calculationResult.estimatedTaxMkd).toBe(228);
+});
+
+it.each(["en", "mk"] as const)(
+  "keeps unknown dates taxable without requesting manual date entry in %s",
+  async (language) => {
+    const output = await generate(sample, language);
+    const transactions = output.book.Sheets[names[language][2]];
+    expect(transactions.M2.v).toBe("");
+    expect(transactions.N1).toBeUndefined();
+    expect(transactions.O1).toBeUndefined();
+    expect(XLSX.utils.decode_range(transactions["!ref"]!).e.c).toBe(12);
+    expect(transactions.M2.s).not.toMatchObject({
+      fgColor: { rgb: "FFF2CC" },
+    });
+    expect(transactions["!autofilter"]?.ref).toBe("A1:M6");
+    expect(output.calculationResult.rows[0]).toMatchObject({
+      purchaseDate: null,
+      daysHeld: null,
+      holdingExempt: false,
+      taxableMkdResult: 1500,
+    });
+    expect(output.calculationResult.estimatedTaxMkd).toBe(240);
+  },
+);
+
+it.each(["en", "mk"] as const)(
+  "automatically fills only one holding-days column in %s",
+  async (language) => {
+    const csvText = [
+      'Statement,Data,Period,"January 1, 2025 - February 28, 2025"',
+      "Mark-to-Market Performance Summary,Header,Asset Category,Symbol,Prior Quantity,Current Quantity",
+      "Mark-to-Market Performance Summary,Data,Stocks,ONE,0,0",
+      "Mark-to-Market Performance Summary,Data,Stocks,MIXED,0,0",
+      "Trades,Header,DataDiscriminator,AssetCategory,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code",
+      "Trades,Data,Order,Stocks,USD,ONE,2025-01-01,1,80,80,-80,0,80,0,0,O",
+      "Trades,Data,Order,Stocks,USD,MIXED,2025-01-02,1,80,80,-80,0,80,0,0,O",
+      "Trades,Data,Order,Stocks,USD,MIXED,2025-01-05,1,80,80,-80,0,80,0,0,O",
+      "Trades,Data,Order,Stocks,USD,ONE,2025-01-10,-1,100,100,100,0,-80,20,0,C",
+      "Trades,Data,Order,Stocks,USD,MIXED,2025-01-11,-2,100,100,200,0,-160,40,0,C",
+    ].join("\n");
+    const output = await generate(csvText, language);
+    const sheet = output.book.Sheets[names[language][2]];
+    expect(sheet.M2).toMatchObject({
+      v: 9,
+      f: `=DATEVALUE(A2)-DATEVALUE(LEFT(TRIM('${names[language][0]}'!G6),10))`,
+    });
+    expect(sheet.M3.v).toBe("6 – 9");
+    expect(sheet.M3.f).toContain(`'${names[language][0]}'!G7`);
+    expect(sheet.M3.f).toContain(`'${names[language][0]}'!G8`);
+    expect(sheet.L2.v).toBe(1200);
+    expect(sheet.L3.v).toBe(2400);
+    expect(sheet.N1).toBeUndefined();
+    expect(XLSX.utils.decode_range(sheet["!ref"]!).e.c).toBe(12);
+    expect(output.calculationResult.estimatedTaxMkd).toBe(360);
+    expect(output.calculationResult.rows[1]).toMatchObject({
+      purchaseDate: null,
+      purchaseDateRange: { earliest: "2025-01-02", latest: "2025-01-05" },
+      daysHeldRange: { min: 6, max: 9 },
+      holdingExempt: false,
+    });
+  },
+);
+
+it.each([
+  ["2023-01-11", false],
+  ["2023-01-10", false],
+  ["2023-01-09", true],
+  [" 2020-01-01 ", true],
+] as const)(
+  "propagates stock holding exemption from an explicit %s purchase date",
+  async (purchaseDate, exempt) => {
+    const csvText = sample
+      .split(/\r?\n/)
+      .map((line) => {
+        if (line.startsWith("Trades,Header,")) return `${line},Code,Open Date`;
+        if (line.startsWith("Trades,Data,Order,"))
+          return `${line},C,${line.includes("GAIN,2025-01-10") ? purchaseDate : ""}`;
+        return line;
+      })
+      .join("\n");
+    const output = await generate(csvText);
+    const transactions = output.book.Sheets["Realized Transactions"];
+    expect(transactions.M2.v).toBe(
+      Math.round(
+        (Date.parse("2025-01-10") - Date.parse(purchaseDate.trim())) / 86400000,
+      ),
+    );
+    expect(transactions.M2.f).toBe(
+      "=DATEVALUE(A2)-DATEVALUE(LEFT(TRIM('Original Statement'!Q6),10))",
+    );
+    expect(transactions.L2.v).toBe(1500);
+    expect(output.book.Sheets.Calculation.C2.f).toContain("EDATE");
+    expect(output.calculationResult.rows[0].holdingExempt).toBe(exempt);
+    expect(output.book.Sheets.Summary.B3.v).toBe(exempt ? 300 : 1800);
+    expect(output.calculationResult.estimatedTaxMkd).toBe(exempt ? 90 : 240);
+    expect(
+      explainMonthlyGroups(output.calculationResult, "2025-01")[0].taxableMkd,
+    ).toBe(exempt ? 0 : 1500);
+  },
+);
+
+it("exempts stock gains and losses without changing same-symbol options or dividends", async () => {
+  const csvText = [
+    'Statement,Data,Period,"January 1, 2025 - February 28, 2025"',
+    "Trades,Header,DataDiscriminator,AssetCategory,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code,Open Date",
+    `${trade("SYN", "2025-01-10", 25)},C,2020-01-01`,
+    `${trade("SYN", "2025-01-11", -5)},C,2020-01-01`,
+    `${trade("SYN 01FEB25 100 C", "2025-01-10", 2, "Equity and Index Options")},C,2020-01-01`,
+    'Dividends,Data,USD,2025-01-10,"SYN (Ordinary Dividend)",3',
+    "Interest,Data,USD,2025-01-31,USD credit interest,1",
+  ].join("\n");
+  const output = await generate(csvText);
+  expect(output.calculationResult.realizedMkd).toBe(1320);
+  expect(output.calculationResult.taxableIncomeMkd).toBe(360);
+  expect(output.calculationResult.estimatedTaxMkd).toBe(36);
+  expect(rows(output.book.Sheets.Calculation).slice(1)).toEqual([
+    ["2025-01", "SYN", 300],
+    ["2025-01", "Interest", 60],
+  ]);
+  expect(
+    output.calculationResult.rows.find(
+      (row) => row.assetCategory === "Equity and Index Options",
+    ),
+  ).toMatchObject({ holdingExempt: false, taxableMkdResult: 120 });
+});
+
+it.each(["en", "mk"] as const)(
+  "uses matched ClosedLot dates and shifted source columns in %s",
+  async (language) => {
+    const csvText = [
+      'Statement,Data,Period,"January 1, 2025 - February 28, 2025"',
+      "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code",
+      "Trades,Data,Order,Stocks,USD,SYN,2025-01-10,-,-3,140,140,420,0,-330,90,0,C",
+      "Trades,Data,Trade,Stocks,USD,SYN,2025-01-10,NASDAQ,-3,140,140,420,0,-330,90,0,C",
+      "Trades,Data,ClosedLot,Stocks,USD,SYN,2023-01-09,,1,80,,,,80,60,,LT",
+      "Trades,Data,ClosedLot,Stocks,USD,SYN,2023-01-10,,1,110,,,,110,30,,LT",
+      "Trades,Data,ClosedLot,Stocks,USD,SYN,2024-07-10,,1,140,,,,140,0,,ST",
+    ].join("\n");
+    const output = await generate(csvText, language);
+    const result = output.calculationResult;
+    const sheet = output.book.Sheets[names[language][2]];
+    expect(result.transactionCount).toBe(1);
+    expect(result.realizedUsd).toBe(90);
+    expect(result.rows[0]).toMatchObject({
+      purchaseDateRange: { earliest: "2023-01-09", latest: "2024-07-10" },
+      holdingExempt: false,
+      taxableMkdResult: 1800,
+      lots: [
+        { purchaseDate: "2023-01-09", holdingExempt: true },
+        { purchaseDate: "2023-01-10", holdingExempt: false },
+        { purchaseDate: "2024-07-10", holdingExempt: false },
+      ],
+    });
+    expect(result.estimatedTaxMkd).toBe(180);
+    expect(explainMonthlyGroups(result, "2025-01")[0].taxableMkd).toBe(1800);
+    const original = `'${names[language][0]}'!`;
+    expect(sheet.E2).toMatchObject({ f: `=ABS(VALUE(${original}I3))`, v: 3 });
+    expect(sheet.F2).toMatchObject({ f: `=ABS(VALUE(${original}N3))`, v: 330 });
+    expect(sheet.G2).toMatchObject({ f: `=VALUE(${original}J3)`, v: 140 });
+    expect(sheet.H2).toMatchObject({ f: `=VALUE(${original}L3)`, v: 420 });
+    expect(sheet.I2).toMatchObject({ f: `=VALUE(${original}O3)`, v: 90 });
+    expect(sheet.L2.v).toBe(5400);
+    expect(sheet.M2.f).toContain(`${original}G5`);
+    expect(sheet.M2.f).toContain(`${original}G7`);
+    const calculation = output.book.Sheets[names[language][3]];
+    expect(calculation.C2.v).toBe(1800);
+    expect(calculation.C2.f).toContain(`${original}O5`);
+    expect(calculation.C2.f).toContain(`${original}O6`);
+    expect(calculation.C2.f).toContain("EDATE");
+  },
+);
+
+it("excludes an older lot's loss while retaining a taxable lot's gain and parses US purchase dates", async () => {
+  const csvText = [
+    'Statement,Data,Period,"January 1, 2025 - February 28, 2025"',
+    "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code",
+    "Trades,Data,Order,Stocks,USD,SYN,2025-01-10,-,-2,60,60,120,0,-120,0,0,C",
+    "Trades,Data,Trade,Stocks,USD,SYN,2025-01-10,NASDAQ,-1,60,60,60,0,-80,-20,0,C",
+    "Trades,Data,ClosedLot,Stocks,USD,SYN,1/9/2023,,1,80,,,,80,-20,,LT",
+    "Trades,Data,Trade,Stocks,USD,SYN,2025-01-10,NASDAQ,-1,60,60,60,0,-40,20,0,C",
+    "Trades,Data,ClosedLot,Stocks,USD,SYN,11/12/2024,,1,40,,,,40,20,,ST",
+  ].join("\n");
+  const output = await generate(csvText);
+  expect(output.calculationResult.rows[0]).toMatchObject({
+    usdResult: 0,
+    taxableMkdResult: 1200,
+    daysHeldRange: { min: 59, max: 732 },
+  });
+  expect(output.calculationResult.estimatedTaxMkd).toBe(120);
+  expect(output.book.Sheets["Realized Transactions"].M2.f).toContain(
+    "DATE(RIGHT(",
+  );
+  expect(output.book.Sheets.Calculation.C2.f).toContain("DATE(RIGHT(");
+});
+
+it("keeps large mixed-lot sales within Excel formula limits", async () => {
+  const csvText = [
+    'Statement,Data,Period,"January 1, 2025 - February 28, 2025"',
+    "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code",
+    "Trades,Data,Order,Stocks,USD,SYN,2025-01-10,-,-100,100,100,10000,0,-9000,1000,0,C",
+    ...Array.from(
+      { length: 100 },
+      (_, index) =>
+        `Trades,Data,ClosedLot,Stocks,USD,SYN,${index % 2 ? "1/10/2023" : "1/9/2023"},,1,90,,,,90,10,,LT`,
+    ),
+  ].join("\n");
+  for (const language of ["en", "mk"] as const) {
+    const output = await generate(csvText, language);
+    expect(output.calculationResult.estimatedTaxMkd).toBe(3000);
+    const calculation = output.book.Sheets[names[language][3]];
+    expect(calculation.C2.v).toBe(30000);
+    expect(calculation["!rows"]?.some((row) => row?.hidden)).toBe(true);
+    expect(output.book.Sheets[names[language][4]].B3.f).toContain("$C$2:$C$2");
+    for (const sheet of Object.values(output.book.Sheets))
+      for (const cell of Object.values(sheet))
+        if (cell && typeof cell === "object" && "f" in cell)
+          expect(cell.f.length).toBeLessThanOrEqual(8192);
+  }
+});
+
+it("normalizes older income dates and nets signed withholding refunds without reducing gross tax", async () => {
+  const csvText = [
+    'Statement,Data,Period,"January 1, 2025 - February 28, 2025"',
+    'Dividends,Data,USD,1/10/2025,"SYN (Ordinary Dividend)",10',
+    'Withholding Tax,Data,USD,1/10/2025,"SYN (Ordinary Dividend) - NL Tax",-3',
+    'Withholding Tax,Data,USD,1/10/2025,"SYN (Ordinary Dividend) - NL Tax",1',
+    "Interest,Data,USD,1/11/2025,USD credit interest,1",
+  ].join("\n");
+  const output = await generate(csvText);
+  expect(output.calculationResult.dividends[0]).toMatchObject({
+    date: "2025-01-10",
+    grossUsd: 10,
+    withholdingUsd: 2,
+    netUsd: 8,
+  });
+  expect(output.calculationResult.estimatedTaxMkd).toBe(66);
+  const transactions = output.book.Sheets["Realized Transactions"];
+  expect(transactions.A2.v).toBe("2025-01-10");
+  expect(transactions.A2.f).toContain("TEXT(DATE(RIGHT(");
+  expect(transactions.A3.v).toBe("2025-01-11");
+  expect(transactions.A3.f).toContain("TEXT(DATE(RIGHT(");
 });
 
 it("converts every event to MKD before netting, and reconciles grouped cells with summary and UI totals", async () => {

@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { statementTrades } from "./statementTrades.mjs";
 
 export type StatementPreview = {
   start: string;
@@ -28,9 +29,12 @@ const months = [
 ];
 function date(value: string): string {
   const match = value.match(/^([A-Za-z]+) (\d{1,2}), (\d{4})$/);
+  const usDate = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   const iso = match
     ? `${match[3]}-${String(months.indexOf(match[1]) + 1).padStart(2, "0")}-${match[2].padStart(2, "0")}`
-    : value;
+    : usDate
+      ? `${usDate[3]}-${usDate[1].padStart(2, "0")}-${usDate[2].padStart(2, "0")}`
+      : value;
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(iso) ||
     !Number.isFinite(Date.parse(iso)) ||
@@ -94,7 +98,14 @@ export function inspectStatement(csvText: string): StatementPreview {
   };
   const errors = new Set<string>(),
     warnings = new Set<string>();
-  let tradeHeader: string[] | undefined;
+  let trades: ReturnType<typeof statementTrades> = new Map();
+  try {
+    trades = statementTrades(rows);
+  } catch (error) {
+    errors.add(
+      error instanceof Error ? error.message : "Invalid statement trades.",
+    );
+  }
   const checkDate = (value: string | undefined, row: number) => {
     try {
       const d = date((value ?? "").slice(0, 10));
@@ -107,7 +118,6 @@ export function inspectStatement(csvText: string): StatementPreview {
     }
   };
   rows.forEach((r, i) => {
-    if (r[0] === "Trades" && r[1] === "Header") tradeHeader = r;
     if (r[1] !== "Data") return;
     if (r[0] === "Trades" && r[2] === "Order") {
       if (r[3] === "Forex") {
@@ -121,6 +131,10 @@ export function inspectStatement(csvText: string): StatementPreview {
         return;
       }
       if (r[4] !== "USD") return;
+      const trade = trades.get(i + 1);
+      if (!trade) return;
+      const tradeRow = trade.row,
+        tradeHeader = trade.header;
       if (
         !tradeHeader ||
         tradeHeader[4] !== "Currency" ||
@@ -132,14 +146,14 @@ export function inspectStatement(csvText: string): StatementPreview {
         errors.add(
           "Unsupported trade columns. Include realized P/L and cost basis in your IBKR Activity Statement.",
         );
-      checkDate(r[6], i + 1);
-      if (![7, 8, 10, 12, 13].every((c) => number(r[c])))
+      checkDate(tradeRow[6], i + 1);
+      if (![7, 8, 10, 12, 13].every((c) => number(tradeRow[c])))
         errors.add(
           `Row ${i + 1}: a required trade amount is missing or invalid.`,
         );
-      const qty = Number(r[7]?.replaceAll(",", "")),
-        pl = Number(r[13]?.replaceAll(",", ""));
-      const code = r[15] ?? "";
+      const qty = Number(tradeRow[7]?.replaceAll(",", "")),
+        pl = Number(tradeRow[13]?.replaceAll(",", ""));
+      const code = tradeRow[15] ?? "";
       if ((qty > 0 && pl !== 0) || (qty < 0 && /(^|;)O(;|$)/.test(code)))
         errors.add(
           "Short positions are not supported by the current Excel report. A closing purchase or opening short sale was found.",
@@ -155,10 +169,6 @@ export function inspectStatement(csvText: string): StatementPreview {
         errors.add(`Row ${i + 1}: an income amount is missing or invalid.`);
       if (r[0] === "Dividends") result.dividends++;
       if (r[0] === "Interest") result.interest++;
-      if (r[0] === "Withholding Tax" && Number(r[5]) > 0)
-        errors.add(
-          "A withholding reversal was found. The current Excel report cannot reconcile this adjustment; review it manually.",
-        );
     }
     if (r[0] === "Grant Activity")
       warnings.add(

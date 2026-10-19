@@ -27,6 +27,19 @@ export type WorkpaperResult = {
     usdResult: number;
     mkdRate: number;
     mkdResult: number;
+    purchaseDate?: string | null;
+    daysHeld?: number | null;
+    holdingExempt?: boolean;
+    purchaseDateRange?: { earliest: string; latest: string };
+    daysHeldRange?: { min: number; max: number };
+    taxableMkdResult?: number;
+    lots?: Array<{
+      purchaseDate: string;
+      quantity: number;
+      usdResult: number;
+      daysHeld: number;
+      holdingExempt: boolean;
+    }>;
   }>;
   dividends: Array<{
     date: string;

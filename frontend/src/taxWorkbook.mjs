@@ -18,7 +18,8 @@ const workbookTranslations = {
     },
     rateHeaders: ["DATE", "USD-MKD RATE"],
     transactionHeaders: [
-      "DATE",
+      "PURCHASE DATE",
+      "SALE DATE",
       "T-1 DATE",
       "SYMBOL",
       "FINANCIAL INSTRUMENT",
@@ -30,7 +31,6 @@ const workbookTranslations = {
       "CURRENCY",
       "EXCHANGE RATE",
       "REALIZED P/L (MKD)",
-      "DAYS HELD",
     ],
     calculationHeaders: [
       "MONTH",
@@ -45,7 +45,7 @@ const workbookTranslations = {
     },
     interestSymbol: "Interest",
     holdingNote:
-      "Holding days use the statement's purchase dates. A range covers multiple acquisition dates. Blank holding days indicate missing lot dates; those sales remain in the calculation. With IBKR Closed Lot details, each sold lot is checked separately and results from stocks held for more than two calendar years are excluded.",
+      "Purchase dates come from the statement. A range runs from the earliest to the latest acquisition date for a sale. Blank purchase dates indicate missing acquisition details; those sales remain in the calculation. Each sold stock lot is checked separately, and results from stocks held for more than two calendar years are excluded from tax only.",
     summaryTitle: "SUMMARY",
     summaryTotal: "TOTAL",
     summaryHeaders: ["Month", "Total", "Tax"],
@@ -60,7 +60,8 @@ const workbookTranslations = {
     },
     rateHeaders: ["ДАТУМ", "КУРС USD-MKD"],
     transactionHeaders: [
-      "ДАТУМ",
+      "ДАТУМ НА КУПУВАЊЕ",
+      "ДАТУМ НА ПРОДАЖБА",
       "ДАТУМ НА КУРСОТ (Т-1)",
       "СИМБОЛ",
       "ФИНАНСИСКИ ИНСТРУМЕНТ",
@@ -72,7 +73,6 @@ const workbookTranslations = {
       "ВАЛУТА",
       "ДЕВИЗЕН КУРС",
       "РЕАЛИЗИРАНА ДОБИВКА ИЛИ ЗАГУБА (МКД)",
-      "ДЕНОВИ НА ПОСЕДУВАЊЕ",
     ],
     calculationHeaders: [
       "МЕСЕЦ",
@@ -87,7 +87,7 @@ const workbookTranslations = {
     },
     interestSymbol: "Интерест",
     holdingNote:
-      "Деновите на поседување се пресметуваат автоматски од извештајот. Опсегот означува повеќе можни датуми на купување. Празно поле значи дека недостигаат датуми по лот; продажбата останува во пресметката. Се исклучуваат само акции држени подолго од две календарски години. За стари куповни датуми во истиот извештај, користи IBKR Closed Lot детали.",
+      "Датумите на купување се преземаат од извештајот. Опсегот го покажува најраниот и најдоцниот датум на купување за една продажба. Празно поле значи дека недостигаат куповни датуми; продажбата останува во пресметката. Секој продаден лот акции се проверува одделно, а резултатите од акции држени подолго од две календарски години се исклучуваат само од данокот.",
     summaryTitle: "РЕЗИМЕ",
     summaryTotal: "ВКУПНО",
     summaryHeaders: ["Месец", "Вкупно", "Данок"],
@@ -256,7 +256,7 @@ async function buildTaxWorkbook({
   const rateByDate = new Map(fullRates.map((row) => [row.requestedDate, row]));
   const formulas = {
     rate: (row) =>
-      `=IFERROR(VLOOKUP(A${row},${ratesSheetReference}$A:$B,2,FALSE),0)`,
+      `=IFERROR(VLOOKUP(B${row},${ratesSheetReference}$A:$B,2,FALSE),0)`,
   };
   const originalSheetRow = (index) => index + 1;
   const sourceRows = csvRows.map((row, index) => ({
@@ -310,7 +310,7 @@ async function buildTaxWorkbook({
           : normalizedExplicitColumn + trade.columnOffset;
       const lots = trade.lots?.map((lot) => ({
         ...lot,
-        holding: stockHoldingDetails("Stocks", lot.purchaseDate, date),
+        holding: stockHoldingDetails(row[3], lot.purchaseDate, date),
       }));
       const lotDates = lots
         ?.map((lot) => ({
@@ -357,21 +357,22 @@ async function buildTaxWorkbook({
       const mixedDates =
         purchaseDates &&
         purchaseDates.earliest.date !== purchaseDates.latest.date;
-      const holding = mixedDates
-        ? {
-            purchaseDate: null,
-            daysHeld: null,
-            exempt: latestHolding.exempt,
-            purchaseDateRange: {
-              earliest: purchaseDates.earliest.date,
-              latest: purchaseDates.latest.date,
-            },
-            daysHeldRange: {
-              min: latestHolding.daysHeld,
-              max: earliestHolding.daysHeld,
-            },
-          }
-        : latestHolding;
+      const holding =
+        mixedDates && row[3] === "Stocks"
+          ? {
+              purchaseDate: null,
+              daysHeld: null,
+              exempt: latestHolding.exempt,
+              purchaseDateRange: {
+                earliest: purchaseDates.earliest.date,
+                latest: purchaseDates.latest.date,
+              },
+              daysHeldRange: {
+                min: latestHolding.daysHeld,
+                max: earliestHolding.daysHeld,
+              },
+            }
+          : latestHolding;
       securities.push({
         row,
         sheetRow,
@@ -435,6 +436,8 @@ async function buildTaxWorkbook({
     }
   });
 
+  // Keep the grouping inputs in their established order, with purchase date
+  // last. The exported rows move that date to column A before writing.
   const transactionRows = [labels.transactionHeaders];
   securities.forEach((item) => {
     const row = transactionRows.length + 1;
@@ -469,7 +472,7 @@ async function buildTaxWorkbook({
       formula(`=VALUE(${column(item.columns.realizedPnl)})`, item.usdResult),
       formula(`=${column(item.columns.currency)}`, item.row[4], "str"),
       formula(formulas.rate(row), item.rate.mkdPerUsd),
-      formula(`=I${row}*K${row}`, item.mkdResult),
+      formula(`=J${row}*L${row}`, item.mkdResult),
       "",
     ]);
   });
@@ -489,7 +492,7 @@ async function buildTaxWorkbook({
       formula(`=VALUE(${column("F")})`, item.usdAmount),
       "USD",
       formula(formulas.rate(row), item.rate.mkdPerUsd),
-      formula(`=I${row}*K${row}`, item.mkdAmount),
+      formula(`=J${row}*L${row}`, item.mkdAmount),
     ]);
   });
 
@@ -530,7 +533,7 @@ async function buildTaxWorkbook({
       formulaSum(item.gross),
       "USD",
       formula(formulas.rate(row), item.rate.mkdPerUsd),
-      formula(`=I${row}*K${row}`, grossMkd),
+      formula(`=J${row}*L${row}`, grossMkd),
     ]);
   }
 
@@ -553,22 +556,24 @@ async function buildTaxWorkbook({
   transactionRows.slice(1).forEach((row, index) => {
     const sheetRow = index + 2;
     row[10] = formula(formulas.rate(sheetRow), row[10].v);
-    row[11] = formula(`=I${sheetRow}*K${sheetRow}`, row[11].v);
+    row[11] = formula(`=J${sheetRow}*L${sheetRow}`, row[11].v);
     const security = securitiesByDateFormula.get(row[0].f);
     const isStock = row[3] === labels.assets.stocks;
     row[12] = "";
-    if (isStock && security.purchaseDates) {
-      const holding = security.holding;
+    if (security?.purchaseDates) {
       const latestDate = sourceDateFormula(security.purchaseDates.latest);
       const earliestDate = sourceDateFormula(security.purchaseDates.earliest);
+      const mixedDates =
+        security.purchaseDates.earliest.date !==
+        security.purchaseDates.latest.date;
       row[12] = formula(
-        holding.daysHeldRange
-          ? `=(DATEVALUE(A${sheetRow})-${latestDate})&" – "&(DATEVALUE(A${sheetRow})-${earliestDate})`
-          : `=DATEVALUE(A${sheetRow})-${latestDate}`,
-        holding.daysHeldRange
-          ? `${holding.daysHeldRange.min} – ${holding.daysHeldRange.max}`
-          : (holding.daysHeld ?? ""),
-        holding.daysHeld === null ? "str" : "n",
+        mixedDates
+          ? `=TEXT(${earliestDate},"yyyy-mm-dd")&" – "&TEXT(${latestDate},"yyyy-mm-dd")`
+          : `=TEXT(${latestDate},"yyyy-mm-dd")`,
+        mixedDates
+          ? `${security.purchaseDates.earliest.date} – ${security.purchaseDates.latest.date}`
+          : security.purchaseDates.latest.date,
+        "str",
       );
     }
     taxableAmountByTransaction.set(
@@ -586,10 +591,10 @@ async function buildTaxWorkbook({
   }
   const transactionEndRow = transactionRows.length;
   const transactionFormulaEndRow = Math.max(transactionEndRow, 2);
-  const transactionDates = `${transactionSheetReference}$A$2:$A$${transactionFormulaEndRow}`;
-  const transactionSymbols = `${transactionSheetReference}$C$2:$C$${transactionFormulaEndRow}`;
-  const transactionAssets = `${transactionSheetReference}$D$2:$D$${transactionFormulaEndRow}`;
-  const transactionMkd = `${transactionSheetReference}$L$2:$L$${transactionFormulaEndRow}`;
+  const transactionDates = `${transactionSheetReference}$B$2:$B$${transactionFormulaEndRow}`;
+  const transactionSymbols = `${transactionSheetReference}$D$2:$D$${transactionFormulaEndRow}`;
+  const transactionAssets = `${transactionSheetReference}$E$2:$E$${transactionFormulaEndRow}`;
+  const transactionMkd = `${transactionSheetReference}$M$2:$M$${transactionFormulaEndRow}`;
   const cellValue = (cell) =>
     cell && typeof cell === "object" ? cell.v : cell;
   const transactionSheetRows = new Map(
@@ -703,12 +708,13 @@ async function buildTaxWorkbook({
         ({ sheetRow: sourceRow, security }) => {
           const source = (column) =>
             `${transactionSheetReference}${column}${sourceRow}`;
-          const days = source("M");
-          const minimumDays = `IF(ISNUMBER(${days}),${days},VALUE(LEFT(${days},FIND(" – ",${days})-1)))`;
+          const latestPurchaseDate = sourceDateFormula(
+            security.purchaseDates.latest,
+          );
           if (security.lots) {
             const checks = security.lots.map(
               (lot) =>
-                `DATEVALUE(${source("A")})>EDATE(${sourceDateFormula({
+                `DATEVALUE(${source("B")})>EDATE(${sourceDateFormula({
                   column: lot.columns.date,
                   sheetRow: lot.sheetRow,
                   dateFormat: lot.dateFormat,
@@ -721,12 +727,12 @@ async function buildTaxWorkbook({
             // Exclude each broker-matched lot separately. Removing the complete
             // parent result when every lot qualifies also preserves its rounding.
             return {
-              f: `IF(AND(LEFT(${source("A")},7)=A${row},${source("C")}=B${row}),IF(DATEVALUE(${source("A")})>EDATE(DATEVALUE(${source("A")})-${minimumDays},24),${source("L")},${boundedSum(excludedLotResults, 4000).f}*${source("K")}),0)`,
+              f: `IF(AND(LEFT(${source("B")},7)=A${row},${source("D")}=B${row}),IF(DATEVALUE(${source("B")})>EDATE(${latestPurchaseDate},24),${source("M")},${boundedSum(excludedLotResults, 4000).f}*${source("L")}),0)`,
               v: security.mkdResult - security.taxableMkdResult,
             };
           }
           return {
-            f: `IF(AND(LEFT(${source("A")},7)=A${row},${source("C")}=B${row},${source("D")}="${labels.assets.stocks}",${days}<>""),IF(${minimumDays}<0,NA(),IF(DATEVALUE(${source("A")})>EDATE(DATEVALUE(${source("A")})-${minimumDays},24),${source("L")},0)),0)`,
+            f: `IF(AND(LEFT(${source("B")},7)=A${row},${source("D")}=B${row},${source("E")}="${labels.assets.stocks}"),IF(${latestPurchaseDate}>DATEVALUE(${source("B")}),NA(),IF(DATEVALUE(${source("B")})>EDATE(${latestPurchaseDate},24),${source("M")},0)),0)`,
             v: security.mkdResult - security.taxableMkdResult,
           };
         },
@@ -749,7 +755,7 @@ async function buildTaxWorkbook({
         }
         const sums = spans.map(
           ([start, end]) =>
-            `SUMIF(${transactionSheetReference}$A$${start}:$A$${end},A${row}&"-*",${transactionSheetReference}$L$${start}:$L$${end})`,
+            `SUMIF(${transactionSheetReference}$B$${start}:$B$${end},A${row}&"-*",${transactionSheetReference}$M$${start}:$M$${end})`,
         );
         groupFormula = `=MAX(0,SUM(${sums.join(",")})${holdingAdjustment})`;
       }
@@ -833,11 +839,21 @@ async function buildTaxWorkbook({
       usdResult: item.usdResult,
       mkdRate: item.rate.mkdPerUsd,
       mkdResult: item.mkdResult,
-      purchaseDate: item.holding.purchaseDate,
+      purchaseDate:
+        item.purchaseDates &&
+        item.purchaseDates.earliest.date === item.purchaseDates.latest.date
+          ? item.purchaseDates.latest.date
+          : null,
       daysHeld: item.holding.daysHeld,
       holdingExempt: item.holding.exempt,
-      ...(item.holding.purchaseDateRange && {
-        purchaseDateRange: item.holding.purchaseDateRange,
+      ...(item.purchaseDates &&
+        item.purchaseDates.earliest.date !== item.purchaseDates.latest.date && {
+          purchaseDateRange: {
+            earliest: item.purchaseDates.earliest.date,
+            latest: item.purchaseDates.latest.date,
+          },
+        }),
+      ...(item.holding.daysHeldRange && {
         daysHeldRange: item.holding.daysHeldRange,
       }),
       taxableMkdResult: item.taxableMkdResult,
@@ -940,7 +956,11 @@ async function buildTaxWorkbook({
   const workbook = XLSX.utils.book_new();
   const original = XLSX.utils.aoa_to_sheet(originalRows);
   const rates = XLSX.utils.aoa_to_sheet(conversionRows);
-  const transactions = XLSX.utils.aoa_to_sheet(transactionRows);
+  const displayedTransactionRows = [
+    labels.transactionHeaders,
+    ...transactionRows.slice(1).map((row) => [row[12], ...row.slice(0, 12)]),
+  ];
+  const transactions = XLSX.utils.aoa_to_sheet(displayedTransactionRows);
   const calculation = XLSX.utils.aoa_to_sheet(calculationRows);
   if (calculationHelpers.length) {
     XLSX.utils.sheet_add_aoa(
@@ -980,12 +1000,12 @@ async function buildTaxWorkbook({
     }
   };
   rates["!cols"] = [{ wch: 16 }, { wch: 18 }];
-  transactions["!cols"] = transactionRows[0].map((_, column) => ({
+  transactions["!cols"] = displayedTransactionRows[0].map((_, column) => ({
     wch: Math.min(
       24,
       Math.max(
         12,
-        ...transactionRows.slice(1).map((row) => {
+        ...displayedTransactionRows.slice(1).map((row) => {
           const cell = row[column];
           const value = cell && typeof cell === "object" ? cell.v : cell;
           return String(value ?? "").length;
@@ -1009,18 +1029,19 @@ async function buildTaxWorkbook({
   styleHeader(transactions, 0, 12, wrappedHeaderStyle);
   transactions["!rows"] = [{ hpt: 54 }];
   for (let row = 1; row < transactionEndRow; row++) {
-    const cell = transactions[XLSX.utils.encode_cell({ r: row, c: 4 })];
+    const cell = transactions[XLSX.utils.encode_cell({ r: row, c: 5 })];
     if (cell) cell.s = { alignment: { horizontal: "right" } };
     const sheetRow = row + 1;
-    if (transactionRows[row][3] === labels.assets.stocks) {
-      transactions[`M${sheetRow}`].s = {
+    if (transactionRows[row][12]?.f) {
+      transactions[`A${sheetRow}`].s = {
         font: { color: { rgb: "008000" } },
         alignment: { horizontal: "center" },
       };
-      transactions[`M${sheetRow}`].z = "0";
+      transactions[`A${sheetRow}`].z = "@";
     }
   }
-  transactions["!cols"][12] = { wch: 22 };
+  transactions["!cols"][0] = { wch: 26 };
+  transactions["!cols"][1] = { wch: 18 };
   const holdingNoteRow = transactionEndRow + 2;
   XLSX.utils.sheet_add_aoa(transactions, [[labels.holdingNote]], {
     origin: `A${holdingNoteRow}`,

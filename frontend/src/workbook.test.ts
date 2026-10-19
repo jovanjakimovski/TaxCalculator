@@ -79,21 +79,30 @@ it("exports five translated sheets with intact original data and updated purchas
       rows(en.book.Sheets[names.en[0]]),
     );
     const transactions = output.book.Sheets[names[language][2]];
-    expect(transactions.F1.v).toBe(
-      language === "mk" ? "КУПОВНА ЦЕНА" : "PURCHASE PRICE",
+    expect(transactions.A1.v).toBe(
+      language === "mk" ? "ДАТУМ НА КУПУВАЊЕ" : "PURCHASE DATE",
+    );
+    expect(transactions.B1.v).toBe(
+      language === "mk" ? "ДАТУМ НА ПРОДАЖБА" : "SALE DATE",
+    );
+    expect(rows(transactions)[0]).not.toContain(
+      language === "mk" ? "ДЕНОВИ НА ПОСЕДУВАЊЕ" : "DAYS HELD",
     );
     expect(transactions.G1.v).toBe(
-      language === "mk" ? "ПРОДАЖНА ЦЕНА ПО АКЦИЈА" : "SALE PRICE PER SHARE",
+      language === "mk" ? "КУПОВНА ЦЕНА" : "PURCHASE PRICE",
     );
     expect(transactions.H1.v).toBe(
+      language === "mk" ? "ПРОДАЖНА ЦЕНА ПО АКЦИЈА" : "SALE PRICE PER SHARE",
+    );
+    expect(transactions.I1.v).toBe(
       language === "mk" ? "ПРОДАЖНА ЦЕНА" : "SALE PRICE",
     );
     expect(output.book.Sheets[names[language][1]].B1.v).toBe(
       language === "mk" ? "КУРС USD-MKD" : "USD-MKD RATE",
     );
-    expect(transactions.A2.f).toContain(`'${names[language][0]}'!G6`);
-    expect(transactions.K2.f).toContain(`'${names[language][1]}'!`);
-    expect(transactions.L2).toMatchObject({ f: "=I2*K2", v: 1500 });
+    expect(transactions.B2.f).toContain(`'${names[language][0]}'!G6`);
+    expect(transactions.L2.f).toContain(`'${names[language][1]}'!`);
+    expect(transactions.M2).toMatchObject({ f: "=J2*L2", v: 1500 });
     const calculation = output.book.Sheets[names[language][3]];
     expect(XLSX.utils.decode_range(calculation["!ref"]!).e.c).toBe(2);
     expect(calculation.C1.v).toContain(
@@ -105,7 +114,7 @@ it("exports five translated sheets with intact original data and updated purchas
         : "((STOCK+OPTIONS+DIVIDEND)+interest)",
     );
     expect(calculation.C1.v).not.toMatch(/FORMULA:|ФОРМУЛА:/);
-    expect(calculation.C2.f).toContain(`'${names[language][2]}'!$L$2:`);
+    expect(calculation.C2.f).toContain(`'${names[language][2]}'!$M$2:`);
     expect(calculation.C2.z).toBe("#,##0.00");
     const summary = output.book.Sheets[names[language][4]];
     expect(rows(summary)[1]).toEqual(
@@ -158,7 +167,7 @@ it("nets stock, both IBKR option formats and gross dividends by underlying symbo
     );
     const transactionSymbols = rows(output.book.Sheets[names[language][2]])
       .slice(1)
-      .map((row) => row[2]);
+      .map((row) => row[3]);
     expect(transactionSymbols).toContain("GAIN 01FEB25 100 C");
     expect(transactionSymbols).toContain("GAIN  250201C00010000");
     expect(output.calculationResult.estimatedTaxMkd).toBe(210);
@@ -192,11 +201,12 @@ it.each(["en", "mk"] as const)(
   async (language) => {
     const output = await generate(sample, language);
     const transactions = output.book.Sheets[names[language][2]];
-    expect(transactions.M2.v).toBe("");
+    expect(transactions.A2.v).toBe("");
+    expect(transactions.B2.v).toBe("2025-01-10");
     expect(transactions.N1).toBeUndefined();
     expect(transactions.O1).toBeUndefined();
     expect(XLSX.utils.decode_range(transactions["!ref"]!).e.c).toBe(12);
-    expect(transactions.M2.s).not.toMatchObject({
+    expect(transactions.A2.s).not.toMatchObject({
       fgColor: { rgb: "FFF2CC" },
     });
     expect(transactions["!autofilter"]?.ref).toBe("A1:M6");
@@ -211,7 +221,7 @@ it.each(["en", "mk"] as const)(
 );
 
 it.each(["en", "mk"] as const)(
-  "automatically fills only one holding-days column in %s",
+  "shows a verified purchase date or an inferred purchase-date range in %s",
   async (language) => {
     const csvText = [
       'Statement,Data,Period,"January 1, 2025 - February 28, 2025"',
@@ -227,15 +237,14 @@ it.each(["en", "mk"] as const)(
     ].join("\n");
     const output = await generate(csvText, language);
     const sheet = output.book.Sheets[names[language][2]];
-    expect(sheet.M2).toMatchObject({
-      v: 9,
-      f: `=DATEVALUE(A2)-DATEVALUE(LEFT(TRIM('${names[language][0]}'!G6),10))`,
-    });
-    expect(sheet.M3.v).toBe("6 – 9");
-    expect(sheet.M3.f).toContain(`'${names[language][0]}'!G7`);
-    expect(sheet.M3.f).toContain(`'${names[language][0]}'!G8`);
-    expect(sheet.L2.v).toBe(1200);
-    expect(sheet.L3.v).toBe(2400);
+    expect(sheet.A2.v).toBe("2025-01-01");
+    expect(sheet.A2.f).toContain(`'${names[language][0]}'!G6`);
+    expect(sheet.B2.v).toBe("2025-01-10");
+    expect(sheet.A3.v).toBe("2025-01-02 – 2025-01-05");
+    expect(sheet.A3.f).toContain(`'${names[language][0]}'!G7`);
+    expect(sheet.A3.f).toContain(`'${names[language][0]}'!G8`);
+    expect(sheet.M2.v).toBe(1200);
+    expect(sheet.M3.v).toBe(2400);
     expect(sheet.N1).toBeUndefined();
     expect(XLSX.utils.decode_range(sheet["!ref"]!).e.c).toBe(12);
     expect(output.calculationResult.estimatedTaxMkd).toBe(360);
@@ -267,15 +276,12 @@ it.each([
       .join("\n");
     const output = await generate(csvText);
     const transactions = output.book.Sheets["Realized Transactions"];
-    expect(transactions.M2.v).toBe(
-      Math.round(
-        (Date.parse("2025-01-10") - Date.parse(purchaseDate.trim())) / 86400000,
-      ),
-    );
-    expect(transactions.M2.f).toBe(
-      "=DATEVALUE(A2)-DATEVALUE(LEFT(TRIM('Original Statement'!Q6),10))",
-    );
-    expect(transactions.L2.v).toBe(1500);
+    expect(transactions.A2.v).toBe(purchaseDate.trim());
+    expect(transactions.A2.f).toContain("'Original Statement'!Q6");
+    expect(transactions.B2.v).toBe("2025-01-10");
+    expect(transactions.D2.v).toBe("GAIN");
+    expect(transactions.J2.v).toBe(25);
+    expect(transactions.M2.v).toBe(1500);
     expect(output.book.Sheets.Calculation.C2.f).toContain("EDATE");
     expect(output.calculationResult.rows[0].holdingExempt).toBe(exempt);
     expect(output.book.Sheets.Summary.B3.v).toBe(exempt ? 300 : 1800);
@@ -341,18 +347,23 @@ it.each(["en", "mk"] as const)(
     expect(result.estimatedTaxMkd).toBe(180);
     expect(explainMonthlyGroups(result, "2025-01")[0].taxableMkd).toBe(1800);
     const original = `'${names[language][0]}'!`;
-    expect(sheet.E2).toMatchObject({ f: `=ABS(VALUE(${original}I3))`, v: 3 });
-    expect(sheet.F2).toMatchObject({ f: `=ABS(VALUE(${original}N3))`, v: 330 });
-    expect(sheet.G2).toMatchObject({ f: `=VALUE(${original}J3)`, v: 140 });
-    expect(sheet.H2).toMatchObject({ f: `=VALUE(${original}L3)`, v: 420 });
-    expect(sheet.I2).toMatchObject({ f: `=VALUE(${original}O3)`, v: 90 });
-    expect(sheet.L2.v).toBe(5400);
-    expect(sheet.M2.f).toContain(`${original}G5`);
-    expect(sheet.M2.f).toContain(`${original}G7`);
+    expect(sheet.F2).toMatchObject({ f: `=ABS(VALUE(${original}I3))`, v: 3 });
+    expect(sheet.G2).toMatchObject({ f: `=ABS(VALUE(${original}N3))`, v: 330 });
+    expect(sheet.H2).toMatchObject({ f: `=VALUE(${original}J3)`, v: 140 });
+    expect(sheet.I2).toMatchObject({ f: `=VALUE(${original}L3)`, v: 420 });
+    expect(sheet.J2).toMatchObject({ f: `=VALUE(${original}O3)`, v: 90 });
+    expect(sheet.M2.v).toBe(5400);
+    expect(sheet.A2.v).toBe("2023-01-09 – 2024-07-10");
+    expect(sheet.A2.f).toContain(`${original}G5`);
+    expect(sheet.A2.f).toContain(`${original}G7`);
+    expect(sheet.B2.v).toBe("2025-01-10");
     const calculation = output.book.Sheets[names[language][3]];
     expect(calculation.C2.v).toBe(1800);
     expect(calculation.C2.f).toContain(`${original}O5`);
     expect(calculation.C2.f).toContain(`${original}O6`);
+    expect(calculation.C2.f).toContain(`${original}G5`);
+    expect(calculation.C2.f).toContain(`${original}G6`);
+    expect(calculation.C2.f).toContain(`${original}G7`);
     expect(calculation.C2.f).toContain("EDATE");
   },
 );
@@ -374,11 +385,74 @@ it("excludes an older lot's loss while retaining a taxable lot's gain and parses
     daysHeldRange: { min: 59, max: 732 },
   });
   expect(output.calculationResult.estimatedTaxMkd).toBe(120);
-  expect(output.book.Sheets["Realized Transactions"].M2.f).toContain(
+  expect(output.book.Sheets["Realized Transactions"].A2.v).toBe(
+    "2023-01-09 – 2024-11-12",
+  );
+  expect(output.book.Sheets["Realized Transactions"].A2.f).toContain(
     "DATE(RIGHT(",
   );
   expect(output.book.Sheets.Calculation.C2.f).toContain("DATE(RIGHT(");
 });
+
+it.each(["2020-01-03", "1/3/2020"])(
+  "shows one ISO purchase date for repeated %s lots and retains the exempt sale",
+  async (purchaseDate) => {
+    const csvText = [
+      'Statement,Data,Period,"January 1, 2025 - February 28, 2025"',
+      "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code",
+      "Trades,Data,Order,Stocks,USD,SYN,2025-01-10,-,-2,75,75,150,0,-100,50,0,C",
+      `Trades,Data,ClosedLot,Stocks,USD,SYN,${purchaseDate},,1,50,,,,50,25,,LT`,
+      `Trades,Data,ClosedLot,Stocks,USD,SYN,${purchaseDate},,1,50,,,,50,25,,LT`,
+    ].join("\n");
+    for (const language of ["en", "mk"] as const) {
+      const output = await generate(csvText, language);
+      const sheet = output.book.Sheets[names[language][2]];
+      expect(sheet.A2.v).toBe("2020-01-03");
+      expect(sheet.A2.f).toMatch(new RegExp(`'${names[language][0]}'!G[45]`));
+      expect(sheet.B2.v).toBe("2025-01-10");
+      expect(sheet.D2.v).toBe("SYN");
+      expect(sheet.F2.v).toBe(2);
+      expect(sheet.J2.v).toBe(50);
+      expect(sheet.M2.v).toBe(3000);
+      expect(output.calculationResult.transactionCount).toBe(1);
+      expect(output.calculationResult.rows[0]).toMatchObject({
+        holdingExempt: true,
+        taxableMkdResult: 0,
+      });
+      expect(output.calculationResult.estimatedTaxMkd).toBe(0);
+      const calculation = output.book.Sheets[names[language][3]];
+      expect(calculation.C2.v).toBe(0);
+      expect(calculation.C2.f).toContain(`'${names[language][0]}'!G4`);
+      expect(calculation.C2.f).toContain("EDATE");
+    }
+  },
+);
+
+it.each(["en", "mk"] as const)(
+  "shows an option lot's purchase date without applying the stock exemption in %s",
+  async (language) => {
+    const csvText = [
+      'Statement,Data,Period,"January 1, 2025 - February 28, 2025"',
+      "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code",
+      "Trades,Data,Order,Equity and Index Options,USD,SYN 17JAN25 50 C,2025-01-10,-,-1,1.25,1.25,125,0,-100,25,0,C",
+      "Trades,Data,ClosedLot,Equity and Index Options,USD,SYN 17JAN25 50 C,1/3/2020,,1,1,,,,100,25,,LT",
+    ].join("\n");
+    const output = await generate(csvText, language);
+    const sheet = output.book.Sheets[names[language][2]];
+    expect(sheet.A2.v).toBe("2020-01-03");
+    expect(sheet.B2.v).toBe("2025-01-10");
+    expect(sheet.E2.v).toBe(
+      language === "mk" ? "Опции" : "Equity and Index Options",
+    );
+    expect(sheet.J2.v).toBe(25);
+    expect(sheet.M2.v).toBe(1500);
+    expect(output.calculationResult.rows[0]).toMatchObject({
+      holdingExempt: false,
+      taxableMkdResult: 1500,
+    });
+    expect(output.calculationResult.estimatedTaxMkd).toBe(150);
+  },
+);
 
 it("keeps large mixed-lot sales within Excel formula limits", async () => {
   const csvText = [
@@ -422,10 +496,12 @@ it("normalizes older income dates and nets signed withholding refunds without re
   });
   expect(output.calculationResult.estimatedTaxMkd).toBe(66);
   const transactions = output.book.Sheets["Realized Transactions"];
-  expect(transactions.A2.v).toBe("2025-01-10");
-  expect(transactions.A2.f).toContain("TEXT(DATE(RIGHT(");
-  expect(transactions.A3.v).toBe("2025-01-11");
-  expect(transactions.A3.f).toContain("TEXT(DATE(RIGHT(");
+  expect(transactions.A2.v).toBe("");
+  expect(transactions.A3.v).toBe("");
+  expect(transactions.B2.v).toBe("2025-01-10");
+  expect(transactions.B2.f).toContain("TEXT(DATE(RIGHT(");
+  expect(transactions.B3.v).toBe("2025-01-11");
+  expect(transactions.B3.f).toContain("TEXT(DATE(RIGHT(");
 });
 
 it("converts every event to MKD before netting, and reconciles grouped cells with summary and UI totals", async () => {

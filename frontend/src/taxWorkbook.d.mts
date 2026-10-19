@@ -37,7 +37,7 @@ export type WorkpaperResult = {
       purchaseDate: string;
       quantity: number;
       usdResult: number;
-      daysHeld: number;
+      daysHeld: number | null;
       holdingExempt: boolean;
     }>;
   }>;

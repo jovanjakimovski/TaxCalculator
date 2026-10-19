@@ -95,4 +95,15 @@ export function expectSampleWorkbook(
   expect(summary.C5.f).toBe("=ROUNDUP(SUM(C3:C4),0)");
   expect(summary.C3.f).toBeTruthy();
   expect(calculation.C2.f).toBeTruthy();
+  const transactions = workbook.Sheets[names[2]];
+  expect(transactions.A1.v).toBe(
+    language === "mk" ? "ДАТУМ НА КУПУВАЊЕ" : "PURCHASE DATE",
+  );
+  expect(transactions.B1.v).toBe(
+    language === "mk" ? "ДАТУМ НА ПРОДАЖБА" : "SALE DATE",
+  );
+  expect(transactions.A2.v).toBe("");
+  expect(transactions.B2.v).toBe("2025-01-10");
+  expect(transactions.M2.v).toBe(1500);
+  expect(XLSX.utils.decode_range(transactions["!ref"]!).e.c).toBe(12);
 }

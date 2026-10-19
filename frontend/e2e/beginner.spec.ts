@@ -125,8 +125,11 @@ test("lot-detail statements exempt only older shares in the exported report", as
   const workbook = await exportWorkbook(page);
   expect(workbook.Sheets.Summary.B3.v).toBe(1260);
   expect(workbook.Sheets.Summary.C5.v).toBe(126);
-  expect(workbook.Sheets["Realized Transactions"].I2.v).toBe(0);
-  expect(workbook.Sheets["Realized Transactions"].M2.v).toBe("59 – 732");
+  expect(workbook.Sheets["Realized Transactions"].A2.v).toBe(
+    "2023-01-09 – 2024-11-12",
+  );
+  expect(workbook.Sheets["Realized Transactions"].B2.v).toBe("2025-01-10");
+  expect(workbook.Sheets["Realized Transactions"].J2.v).toBe(0);
 });
 
 test("a malformed statement can be replaced and calculated without reloading", async ({

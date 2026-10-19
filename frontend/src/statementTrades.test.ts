@@ -70,6 +70,26 @@ const fill = () => {
   row[2] = "Trade";
   return row;
 };
+const optionOrder = () => {
+  const row = order();
+  row[3] = "Equity and Index Options";
+  row[5] = "SYN 16JAN26 60 C";
+  row[7] = "-1";
+  row[8] = "0.25";
+  row[9] = "0.25";
+  row[10] = "25";
+  row[11] = "-0.5";
+  row[12] = "-125.25";
+  row[13] = "-100.75";
+  return row;
+};
+const optionLot = (date = "2024-01-03") => {
+  const row = lot(date, "1", "125.25", "-100.75");
+  row[3] = "Equity and Index Options";
+  row[5] = "SYN 16JAN26 60 C";
+  row[8] = "1.2525";
+  return row;
+};
 
 describe("IBKR trade orders and closed lots", () => {
   it("normalizes Exchange columns and retains original worksheet coordinates", () => {
@@ -171,6 +191,84 @@ describe("IBKR trade orders and closed lots", () => {
     ).toHaveLength(2);
   });
 
+  it.each(["2024-01-03", "1/3/2024"])(
+    "reads option lot date %s and reconciles full USD totals without multiplying contracts",
+    (date) => {
+      const execution = optionOrder();
+      execution[2] = "Trade";
+      const trade = statementTrades([
+        exchange(header),
+        exchange(optionOrder()),
+        exchange(execution),
+        exchange(optionLot(date)),
+      ]).get(2)!;
+      expect(trade.row).toEqual(optionOrder());
+      expect(trade.lots).toEqual([
+        {
+          sheetRow: 4,
+          purchaseDate: "2024-01-03",
+          dateFormat: date.includes("/") ? "mdy" : "iso",
+          quantity: 1,
+          basis: 125.25,
+          usdResult: -100.75,
+          columns: trade.columns,
+        },
+      ]);
+    },
+  );
+
+  it("keeps separate acquisition dates for multiple option lots", () => {
+    const sale = optionOrder();
+    sale[7] = "-2";
+    sale[10] = "50";
+    sale[11] = "-1";
+    sale[12] = "-250.5";
+    sale[13] = "-201.5";
+    const result = statementTrades([
+      header,
+      sale,
+      optionLot("2023-01-03"),
+      optionLot("2024-01-03"),
+    ]);
+    expect(result.get(2)?.lots?.map((entry) => entry.purchaseDate)).toEqual([
+      "2023-01-03",
+      "2024-01-03",
+    ]);
+  });
+
+  it("applies matching, date, and amount safeguards to option lots", () => {
+    expect(() => statementTrades([header, optionLot()])).toThrow(
+      /preceding option sale/,
+    );
+    const purchase = optionOrder();
+    purchase[7] = "1";
+    expect(() =>
+      statementTrades([header, purchase, optionLot()]),
+    ).toThrow(/preceding option sale/);
+    for (const column of [3, 4, 5]) {
+      const mismatch = optionLot();
+      mismatch[column] = "DIFFERENT";
+      expect(() =>
+        statementTrades([header, optionOrder(), mismatch]),
+      ).toThrow(/preceding option sale/);
+    }
+    for (const column of [7, 12, 13]) {
+      const mismatch = optionLot();
+      mismatch[column] = String(Number(mismatch[column]) + 1);
+      expect(() =>
+        statementTrades([header, optionOrder(), mismatch]),
+      ).toThrow(/must reconcile/);
+    }
+    expect(() =>
+      statementTrades([header, optionOrder(), optionLot("2026-01-03")]),
+    ).toThrow(/purchase date/);
+    const missingBasis = optionLot();
+    missingBasis[12] = "";
+    expect(() =>
+      statementTrades([header, optionOrder(), missingBasis]),
+    ).toThrow(/required ClosedLot amount/);
+  });
+
   it("rejects overflowing lot sums instead of treating them as reconciled", () => {
     expect(() =>
       statementTrades([
@@ -252,18 +350,14 @@ describe("IBKR trade orders and closed lots", () => {
     forex[3] = "Forex";
     const foreign = order();
     foreign[4] = "EUR";
-    const option = order();
-    option[3] = "Equity and Index Options";
-    const optionLot = lot();
-    optionLot[3] = "Equity and Index Options";
     expect(
       statementTrades([
         ["Trades", "Header", "Different", "Forex Fee"],
         forex,
         foreign,
         header,
-        option,
-        optionLot,
+        optionOrder(),
+        optionLot(),
       ]).size,
     ).toBe(1);
   });

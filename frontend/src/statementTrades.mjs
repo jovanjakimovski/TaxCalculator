@@ -147,21 +147,28 @@ export function statementTrades(csvRows) {
     if (sourceRow[2] !== "ClosedLot") return;
 
     const parent = currentOrder?.trade;
-    const parentIsStock = parent?.row[3] === "Stocks";
-    const stockLot = sourceRow[3] === "Stocks" && sourceRow[4] === "USD";
+    const parentIsSupported = ["Stocks", "Equity and Index Options"].includes(
+      parent?.row[3],
+    );
+    const supportedLot =
+      ["Stocks", "Equity and Index Options"].includes(sourceRow[3]) &&
+      sourceRow[4] === "USD";
     // Ignore unsupported instruments/currencies, including Forex's own layout.
-    if (!stockLot && !parentIsStock) return;
+    if (!supportedLot && !parentIsSupported) return;
     const layout = tradeLayout(header);
     if (
-      !parentIsStock ||
+      !parentIsSupported ||
       sourceRow[3] !== parent.row[3] ||
       sourceRow[4] !== parent.row[4] ||
       !String(parent.row[5] ?? "").trim() ||
       sourceRow[5] !== parent.row[5] ||
       !(strictNumber(parent.row[7]) < 0)
     ) {
+      const assetCategory = parent?.row[3] ?? sourceRow[3];
+      const saleKind =
+        assetCategory === "Equity and Index Options" ? "option" : "stock";
       throw new Error(
-        `Row ${sheetRow}: ClosedLot does not match a preceding stock sale Order.`,
+        `Row ${sheetRow}: ClosedLot does not match a preceding ${saleKind} sale Order.`,
       );
     }
 

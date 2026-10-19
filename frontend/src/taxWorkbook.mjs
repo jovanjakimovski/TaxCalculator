@@ -44,8 +44,6 @@ const workbookTranslations = {
       interest: "Interest",
     },
     interestSymbol: "Interest",
-    holdingNote:
-      "Purchase dates come from the statement. A range runs from the earliest to the latest acquisition date for a sale. Blank purchase dates indicate missing acquisition details; those sales remain in the calculation. Each sold stock lot is checked separately, and results from stocks held for more than two calendar years are excluded from tax only.",
     summaryTitle: "SUMMARY",
     summaryTotal: "TOTAL",
     summaryHeaders: ["Month", "Total", "Tax"],
@@ -86,8 +84,6 @@ const workbookTranslations = {
       interest: "Интерест",
     },
     interestSymbol: "Интерест",
-    holdingNote:
-      "Датумите на купување се преземаат од извештајот. Опсегот го покажува најраниот и најдоцниот датум на купување за една продажба. Празно поле значи дека недостигаат куповни датуми; продажбата останува во пресметката. Секој продаден лот акции се проверува одделно, а резултатите од акции држени подолго од две календарски години се исклучуваат само од данокот.",
     summaryTitle: "РЕЗИМЕ",
     summaryTotal: "ВКУПНО",
     summaryHeaders: ["Месец", "Вкупно", "Данок"],
@@ -1042,18 +1038,6 @@ async function buildTaxWorkbook({
   }
   transactions["!cols"][0] = { wch: 26 };
   transactions["!cols"][1] = { wch: 18 };
-  const holdingNoteRow = transactionEndRow + 2;
-  XLSX.utils.sheet_add_aoa(transactions, [[labels.holdingNote]], {
-    origin: `A${holdingNoteRow}`,
-  });
-  transactions[`A${holdingNoteRow}`].s = {
-    font: { sz: 10, color: { rgb: "666666" } },
-    alignment: { wrapText: true, vertical: "center" },
-  };
-  transactions["!merges"] = [
-    { s: { r: holdingNoteRow - 1, c: 0 }, e: { r: holdingNoteRow - 1, c: 12 } },
-  ];
-  transactions["!rows"][holdingNoteRow - 1] = { hpt: 36 };
   styleHeader(calculation, 0, 2, wrappedHeaderStyle);
   calculation["!cols"] = [{ wch: 16 }, { wch: 22 }, { wch: 58 }];
   calculation["!rows"] = [{ hpt: 54 }];

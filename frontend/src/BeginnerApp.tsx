@@ -17,6 +17,11 @@ type Report = GeneratedReport & {
 };
 
 const API = import.meta.env.VITE_API_URL ?? "/api";
+const BUILD_TIMESTAMP = import.meta.env.VITE_BUILD_TIMESTAMP;
+const lastUpdated = new Intl.DateTimeFormat("en-GB", {
+  dateStyle: "short",
+  timeStyle: "short",
+}).format(new Date(BUILD_TIMESTAMP));
 // Some browsers omit Macedonian locale data; keep visible labels consistent.
 const MK_MONTHS = [
   "јануари",
@@ -277,15 +282,21 @@ export default function BeginnerApp() {
               <sup>MK</sup>
             </span>
           </a>
-          <select
-            className="beginner-ui-language"
-            aria-label={tr("Interface language", "Јазик на интерфејсот")}
-            value={language}
-            onChange={(event) => setLanguage(event.target.value as Language)}
-          >
-            <option value="mk">Македонски</option>
-            <option value="en">English</option>
-          </select>
+          <div className="beginner-header-actions">
+            <p className="beginner-last-updated">
+              Last Updated:{" "}
+              <time dateTime={BUILD_TIMESTAMP}>{lastUpdated}</time>
+            </p>
+            <select
+              className="beginner-ui-language"
+              aria-label={tr("Interface language", "Јазик на интерфејсот")}
+              value={language}
+              onChange={(event) => setLanguage(event.target.value as Language)}
+            >
+              <option value="mk">Македонски</option>
+              <option value="en">English</option>
+            </select>
+          </div>
         </div>
       </header>
 

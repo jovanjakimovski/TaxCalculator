@@ -95,6 +95,21 @@ p {
   font-size: 0.58rem;
   letter-spacing: 0.3px;
 }
+.beginner-header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  margin-left: auto;
+  padding-block: 12px;
+}
+.beginner-last-updated {
+  margin: 0;
+  color: #7a817d;
+  font-size: 0.625rem;
+  line-height: 1.4;
+  text-align: right;
+}
 .beginner-ui-language {
   background: transparent;
   border: 1px solid var(--line);
@@ -469,6 +484,7 @@ p {
   .beginner-header-inner {
     min-height: 74px;
     gap: 12px;
+    flex-wrap: wrap;
   }
   .beginner-brand {
     font-size: 1.13rem;

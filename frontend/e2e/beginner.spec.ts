@@ -15,6 +15,47 @@ test.beforeEach(async ({ context }) => {
   await context.route("**/api/license/**", (route) => route.abort());
 });
 
+test("last updated identifies the deployed build above the language selector", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/");
+  const updated = page.locator(".beginner-last-updated");
+  const time = updated.locator("time[datetime]");
+  const language = page.locator(".beginner-ui-language");
+  await expect(updated).toBeVisible();
+  await expect(updated).toContainText("Last Updated:");
+  await expect(time).not.toHaveText("");
+  const timestamp = await time.getAttribute("datetime");
+  expect(timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  expect(new Date(timestamp!).toISOString()).toBe(timestamp);
+  const displayedTime = await time.innerText();
+
+  await language.selectOption("mk");
+  await expect(language).toHaveValue("mk");
+  await expect(time).toHaveAttribute("datetime", timestamp!);
+  await expect(time).toHaveText(displayedTime);
+  await page.reload();
+  await expect(time).toHaveAttribute("datetime", timestamp!);
+  await expect(time).toHaveText(displayedTime);
+  await expect(updated).toBeVisible();
+  const updatedBounds = await updated.boundingBox();
+  const languageBounds = await language.boundingBox();
+  expect(updatedBounds).not.toBeNull();
+  expect(languageBounds).not.toBeNull();
+  expect(updatedBounds!.y + updatedBounds!.height).toBeLessThanOrEqual(
+    languageBounds!.y,
+  );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath("last-updated.png"),
+    fullPage: true,
+  });
+});
+
 test("upload and one click produce a free report and matching Excel", async ({
   page,
   context,
@@ -125,9 +166,7 @@ test("lot-detail statements exempt only older shares in the exported report", as
   const workbook = await exportWorkbook(page);
   expect(workbook.Sheets.Summary.B3.v).toBe(1260);
   expect(workbook.Sheets.Summary.C5.v).toBe(126);
-  expect(workbook.Sheets["Realized Transactions"].A2.v).toBe(
-    "2023-01-09 – 2024-11-12",
-  );
+  expect(workbook.Sheets["Realized Transactions"].A2.v).toBe("2024-11-12");
   expect(workbook.Sheets["Realized Transactions"].B2.v).toBe("2025-01-10");
   expect(workbook.Sheets["Realized Transactions"].J2.v).toBe(0);
 });

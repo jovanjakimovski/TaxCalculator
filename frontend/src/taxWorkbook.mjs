@@ -946,9 +946,7 @@ async function buildTaxWorkbook({
   const rates = XLSX.utils.aoa_to_sheet(conversionRows);
   const displayedTransactionRows = [
     labels.transactionHeaders,
-    ...transactionRows
-      .slice(1)
-      .map((row) => [row[12] || "/", ...row.slice(0, 12)]),
+    ...transactionRows.slice(1).map((row) => [row[12], ...row.slice(0, 12)]),
   ];
   const transactions = XLSX.utils.aoa_to_sheet(displayedTransactionRows);
   const calculation = XLSX.utils.aoa_to_sheet(calculationRows);

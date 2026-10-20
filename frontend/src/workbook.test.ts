@@ -197,14 +197,14 @@ it("nets Interest independently and floors negative security and interest groups
 });
 
 it.each(["en", "mk"] as const)(
-  "shows missing purchase dates as / while keeping unknown dates taxable in %s",
+  "leaves missing purchase dates blank while keeping unknown dates taxable in %s",
   async (language) => {
     const output = await generate(sample, language);
     const transactions = output.book.Sheets[names[language][2]];
-    expect(transactions.A2.v).toBe("/");
+    expect(transactions.A2.v).toBe("");
     expect(transactions.A2.f).toBeUndefined();
     for (let row = 2; row <= 6; row++)
-      expect(transactions[`A${row}`].v).toBe("/");
+      expect(transactions[`A${row}`].v).toBe("");
     expect(transactions.B2.v).toBe("2025-01-10");
     expect(transactions.N1).toBeUndefined();
     expect(transactions.O1).toBeUndefined();
@@ -522,8 +522,8 @@ it("normalizes older income dates and nets signed withholding refunds without re
   });
   expect(output.calculationResult.estimatedTaxMkd).toBe(66);
   const transactions = output.book.Sheets["Realized Transactions"];
-  expect(transactions.A2.v).toBe("/");
-  expect(transactions.A3.v).toBe("/");
+  expect(transactions.A2.v).toBe("");
+  expect(transactions.A3.v).toBe("");
   expect(transactions.B2.v).toBe("2025-01-10");
   expect(transactions.B2.f).toContain("TEXT(DATE(RIGHT(");
   expect(transactions.B3.v).toBe("2025-01-11");

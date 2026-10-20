@@ -558,17 +558,9 @@ async function buildTaxWorkbook({
     row[12] = "";
     if (security?.purchaseDates) {
       const latestDate = sourceDateFormula(security.purchaseDates.latest);
-      const earliestDate = sourceDateFormula(security.purchaseDates.earliest);
-      const mixedDates =
-        security.purchaseDates.earliest.date !==
-        security.purchaseDates.latest.date;
       row[12] = formula(
-        mixedDates
-          ? `=TEXT(${earliestDate},"yyyy-mm-dd")&" – "&TEXT(${latestDate},"yyyy-mm-dd")`
-          : `=TEXT(${latestDate},"yyyy-mm-dd")`,
-        mixedDates
-          ? `${security.purchaseDates.earliest.date} – ${security.purchaseDates.latest.date}`
-          : security.purchaseDates.latest.date,
+        `=TEXT(${latestDate},"yyyy-mm-dd")`,
+        security.purchaseDates.latest.date,
         "str",
       );
     }
@@ -1027,17 +1019,9 @@ async function buildTaxWorkbook({
   for (let row = 1; row < transactionEndRow; row++) {
     const cell = transactions[XLSX.utils.encode_cell({ r: row, c: 5 })];
     if (cell) cell.s = { alignment: { horizontal: "right" } };
-    const sheetRow = row + 1;
-    if (transactionRows[row][12]?.f) {
-      transactions[`A${sheetRow}`].s = {
-        font: { color: { rgb: "008000" } },
-        alignment: { horizontal: "center" },
-      };
-      transactions[`A${sheetRow}`].z = "@";
-    }
   }
-  transactions["!cols"][0] = { wch: 26 };
-  transactions["!cols"][1] = { wch: 18 };
+  for (let column = 0; column < 3; column++)
+    transactions["!cols"][column] = { wch: 18 };
   styleHeader(calculation, 0, 2, wrappedHeaderStyle);
   calculation["!cols"] = [{ wch: 16 }, { wch: 22 }, { wch: 58 }];
   calculation["!rows"] = [{ hpt: 54 }];

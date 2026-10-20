@@ -221,7 +221,7 @@ it.each(["en", "mk"] as const)(
 );
 
 it.each(["en", "mk"] as const)(
-  "shows a verified purchase date or an inferred purchase-date range in %s",
+  "shows the latest purchase date with consistent date-column formatting in %s",
   async (language) => {
     const csvText = [
       'Statement,Data,Period,"January 1, 2025 - February 28, 2025"',
@@ -240,9 +240,33 @@ it.each(["en", "mk"] as const)(
     expect(sheet.A2.v).toBe("2025-01-01");
     expect(sheet.A2.f).toContain(`'${names[language][0]}'!G6`);
     expect(sheet.B2.v).toBe("2025-01-10");
-    expect(sheet.A3.v).toBe("2025-01-02 – 2025-01-05");
-    expect(sheet.A3.f).toContain(`'${names[language][0]}'!G7`);
+    expect(sheet.A3.v).toBe("2025-01-05");
+    expect(sheet.A3.f).not.toContain(`'${names[language][0]}'!G7`);
     expect(sheet.A3.f).toContain(`'${names[language][0]}'!G8`);
+    const archive = XLSX.CFB.read(new Uint8Array(output.workbook), {
+      type: "array",
+    });
+    const transactionXml = new TextDecoder().decode(
+      Uint8Array.from(
+        XLSX.CFB.find(archive, "/xl/worksheets/sheet3.xml").content,
+      ),
+    );
+    const cellStyle = (address: string) => {
+      const cell = transactionXml.match(
+        new RegExp(`<c\\b[^>]*\\br="${address}"[^>]*>`),
+      )?.[0];
+      expect(cell).toBeDefined();
+      return cell?.match(/\bs="([^"]*)"/)?.[1] ?? "0";
+    };
+    for (const row of [2, 3]) {
+      expect(cellStyle(`A${row}`)).toBe(cellStyle(`B${row}`));
+      expect(cellStyle(`A${row}`)).toBe(cellStyle(`C${row}`));
+      expect(sheet[`A${row}`].z).toBe(sheet[`B${row}`].z);
+      expect(sheet[`A${row}`].z).toBe(sheet[`C${row}`].z);
+    }
+    expect(sheet["!cols"]?.slice(0, 3).map((column) => column.wch)).toEqual([
+      18, 18, 18,
+    ]);
     expect(sheet.M2.v).toBe(1200);
     expect(sheet.M3.v).toBe(2400);
     expect(sheet.N1).toBeUndefined();
@@ -353,8 +377,8 @@ it.each(["en", "mk"] as const)(
     expect(sheet.I2).toMatchObject({ f: `=VALUE(${original}L3)`, v: 420 });
     expect(sheet.J2).toMatchObject({ f: `=VALUE(${original}O3)`, v: 90 });
     expect(sheet.M2.v).toBe(5400);
-    expect(sheet.A2.v).toBe("2023-01-09 – 2024-07-10");
-    expect(sheet.A2.f).toContain(`${original}G5`);
+    expect(sheet.A2.v).toBe("2024-07-10");
+    expect(sheet.A2.f).not.toContain(`${original}G5`);
     expect(sheet.A2.f).toContain(`${original}G7`);
     expect(sheet.B2.v).toBe("2025-01-10");
     const calculation = output.book.Sheets[names[language][3]];
@@ -385,9 +409,7 @@ it("excludes an older lot's loss while retaining a taxable lot's gain and parses
     daysHeldRange: { min: 59, max: 732 },
   });
   expect(output.calculationResult.estimatedTaxMkd).toBe(120);
-  expect(output.book.Sheets["Realized Transactions"].A2.v).toBe(
-    "2023-01-09 – 2024-11-12",
-  );
+  expect(output.book.Sheets["Realized Transactions"].A2.v).toBe("2024-11-12");
   expect(output.book.Sheets["Realized Transactions"].A2.f).toContain(
     "DATE(RIGHT(",
   );

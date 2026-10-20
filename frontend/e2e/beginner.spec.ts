@@ -139,6 +139,50 @@ test("Excel document language changes independently without fetching rates again
   expect(rateRequests).toBe(1);
 });
 
+for (const { period, filenamePeriod } of [
+  {
+    period: "January 1, 2025 - December 31, 2025",
+    filenamePeriod: "2025",
+  },
+  {
+    period: "January 1, 2025 - February 28, 2025",
+    filenamePeriod: "01.01.2025-28.02.2025",
+  },
+  {
+    period: "December 1, 2024 - February 28, 2025",
+    filenamePeriod: "01.12.2024-28.02.2025",
+  },
+]) {
+  test(`Excel filename includes the statement account and ${filenamePeriod}`, async ({
+    page,
+  }) => {
+    const csvText = [
+      "Account Information,Data,Account,U13131314",
+      sampleStatement
+        .replaceAll("\r\n", "\n")
+        .replace("January 1, 2025 - February 28, 2025", period),
+    ].join("\n");
+    await page.goto("/");
+    await uploadStatement(page, csvText, "U99999999.csv");
+    await page.getByRole("button", { name: "Calculate", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Results", exact: true }),
+    ).toBeVisible();
+
+    for (const language of ["en", "mk"]) {
+      await page.getByLabel("Excel document language").selectOption(language);
+      const downloaded = page.waitForEvent("download");
+      await page
+        .getByRole("button", { name: "Export Excel", exact: true })
+        .click();
+      const download = await downloaded;
+      expect(download.suggestedFilename()).toBe(
+        `Tax_Report_U13131314_${filenamePeriod}_${language}.xlsx`,
+      );
+    }
+  });
+}
+
 test("lot-detail statements exempt only older shares in the exported report", async ({
   page,
 }) => {

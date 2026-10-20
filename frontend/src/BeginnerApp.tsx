@@ -6,6 +6,7 @@ import { buildReport } from "./buildReport";
 import { inspectStatement, MAX_FILE_BYTES } from "./statement";
 import type { StatementPreview } from "./statement";
 import { statementMessage } from "./statementMessages";
+import { reportFilename } from "./reportFilename";
 
 type Language = "mk" | "en";
 type GeneratedReport = Awaited<ReturnType<typeof buildReport>>;
@@ -242,7 +243,7 @@ export default function BeginnerApp() {
       );
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Tax_Report_${selectedReport.preview.start}_${selectedReport.preview.end}_${selectedLanguage}.xlsx`;
+      link.download = reportFilename(selectedReport.preview, selectedLanguage);
       document.body.appendChild(link);
       link.click();
       link.remove();

@@ -26,6 +26,8 @@ Vite proxies `/api` to the tax backend at `http://localhost:8080`. The frontend 
 
 ## Excel export
 
+Browser downloads include the account number from the statement and the selected Excel language. A full calendar year is named `Tax_Report_U13131314_2025_mk.xlsx`; other periods use the date range, for example `Tax_Report_U13131314_01.01.2025-14.10.2025_mk.xlsx`. If the statement has no single account identifier, the account segment is omitted.
+
 The browser and CLI use the same generator and produce five sheets:
 
 1. **Original Statement / Оригинален Извештај** preserves the original CSV rows, including other currencies.

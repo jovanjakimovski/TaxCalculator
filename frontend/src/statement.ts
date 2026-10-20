@@ -2,6 +2,7 @@ import Papa from "papaparse";
 import { statementTrades } from "./statementTrades.mjs";
 
 export type StatementPreview = {
+  accountId: string | null;
   start: string;
   end: string;
   stocks: number;
@@ -85,7 +86,23 @@ export function inspectStatement(csvText: string): StatementPreview {
     throw new Error("Choose a valid statement period of at most one year.");
   if (start < "2000-01-01" || end > new Date().toISOString().slice(0, 10))
     throw new Error("The statement dates must be between 2000 and today.");
+  const accountIds = new Set(
+    rows
+      .filter(
+        (row) =>
+          row[0] === "Account Information" &&
+          row[1] === "Data" &&
+          row[2] === "Account",
+      )
+      .map((row) =>
+        String(row[3] ?? "")
+          .trim()
+          .toUpperCase(),
+      )
+      .filter((account) => /^[A-Z]+\d+$/.test(account)),
+  );
   const result: StatementPreview = {
+    accountId: accountIds.size === 1 ? [...accountIds][0] : null,
     start,
     end,
     stocks: 0,

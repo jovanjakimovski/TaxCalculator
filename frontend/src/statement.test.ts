@@ -18,10 +18,37 @@ const closedLots = [
 describe("statement preflight", () => {
   it("accepts the public sample and summarizes supported rows", () => {
     const p = inspectStatement(sample);
+    expect(p.accountId).toBeNull();
     expect(p.errors).toEqual([]);
     expect(p.stocks).toBe(2);
     expect(p.dividends).toBe(1);
     expect(p.interest).toBe(2);
+  });
+  it("reads the account identifier from the statement's account metadata", () => {
+    const p = inspectStatement(
+      sample.replaceAll("\r\n", "\n") +
+        "\nAccount Information,Data,Account, u13131314 \n",
+    );
+    expect(p.accountId).toBe("U13131314");
+    expect(p.errors).toEqual([]);
+  });
+  it.each(["", "../U13131314", "U13131314,U99999999"])(
+    "omits an unusable account identifier: %s",
+    (account) => {
+      const p = inspectStatement(
+        sample.replaceAll("\r\n", "\n") +
+          `\nAccount Information,Data,Account,"${account}"\n`,
+      );
+      expect(p.accountId).toBeNull();
+      expect(p.errors).toEqual([]);
+    },
+  );
+  it("does not choose one account for a statement containing different accounts", () => {
+    const p = inspectStatement(
+      sample.replaceAll("\r\n", "\n") +
+        "\nAccount Information,Data,Account,U13131314\nAccount Information,Data,Account,U99999999\n",
+    );
+    expect(p.accountId).toBeNull();
   });
   it("rejects malformed and unsupported CSVs", () => {
     expect(() => inspectStatement('a,b,c\n"unfinished')).toThrow(/malformed/);

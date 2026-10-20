@@ -102,7 +102,7 @@ export function expectSampleWorkbook(
   expect(transactions.B1.v).toBe(
     language === "mk" ? "ДАТУМ НА ПРОДАЖБА" : "SALE DATE",
   );
-  expect(transactions.A2.v).toBe("");
+  expect(transactions.A2.v).toBe("/");
   expect(transactions.B2.v).toBe("2025-01-10");
   expect(transactions.M2.v).toBe(1500);
   expect(XLSX.utils.decode_range(transactions["!ref"]!).e.c).toBe(12);

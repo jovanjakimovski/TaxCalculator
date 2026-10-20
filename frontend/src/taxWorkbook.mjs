@@ -946,7 +946,9 @@ async function buildTaxWorkbook({
   const rates = XLSX.utils.aoa_to_sheet(conversionRows);
   const displayedTransactionRows = [
     labels.transactionHeaders,
-    ...transactionRows.slice(1).map((row) => [row[12], ...row.slice(0, 12)]),
+    ...transactionRows
+      .slice(1)
+      .map((row) => [row[12] || "/", ...row.slice(0, 12)]),
   ];
   const transactions = XLSX.utils.aoa_to_sheet(displayedTransactionRows);
   const calculation = XLSX.utils.aoa_to_sheet(calculationRows);
@@ -1020,8 +1022,9 @@ async function buildTaxWorkbook({
     const cell = transactions[XLSX.utils.encode_cell({ r: row, c: 5 })];
     if (cell) cell.s = { alignment: { horizontal: "right" } };
   }
+  // Calibri 11 uses 7-pixel digits; include its metrics for Excel column widths.
   for (let column = 0; column < 3; column++)
-    transactions["!cols"][column] = { wch: 18 };
+    transactions["!cols"][column] = { wch: 12.5, MDW: 7 };
   styleHeader(calculation, 0, 2, wrappedHeaderStyle);
   calculation["!cols"] = [{ wch: 16 }, { wch: 22 }, { wch: 58 }];
   calculation["!rows"] = [{ hpt: 54 }];

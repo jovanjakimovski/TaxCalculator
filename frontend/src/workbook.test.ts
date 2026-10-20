@@ -197,11 +197,14 @@ it("nets Interest independently and floors negative security and interest groups
 });
 
 it.each(["en", "mk"] as const)(
-  "keeps unknown dates taxable without requesting manual date entry in %s",
+  "shows missing purchase dates as / while keeping unknown dates taxable in %s",
   async (language) => {
     const output = await generate(sample, language);
     const transactions = output.book.Sheets[names[language][2]];
-    expect(transactions.A2.v).toBe("");
+    expect(transactions.A2.v).toBe("/");
+    expect(transactions.A2.f).toBeUndefined();
+    for (let row = 2; row <= 6; row++)
+      expect(transactions[`A${row}`].v).toBe("/");
     expect(transactions.B2.v).toBe("2025-01-10");
     expect(transactions.N1).toBeUndefined();
     expect(transactions.O1).toBeUndefined();
@@ -264,8 +267,9 @@ it.each(["en", "mk"] as const)(
       expect(sheet[`A${row}`].z).toBe(sheet[`B${row}`].z);
       expect(sheet[`A${row}`].z).toBe(sheet[`C${row}`].z);
     }
-    expect(sheet["!cols"]?.slice(0, 3).map((column) => column.wch)).toEqual([
-      18, 18, 18,
+    // XLSX stores the 12.5-character width plus five pixels of cell padding.
+    expect(sheet["!cols"]?.slice(0, 3).map((column) => column.width)).toEqual([
+      13.21484375, 13.21484375, 13.21484375,
     ]);
     expect(sheet.M2.v).toBe(1200);
     expect(sheet.M3.v).toBe(2400);
@@ -518,8 +522,8 @@ it("normalizes older income dates and nets signed withholding refunds without re
   });
   expect(output.calculationResult.estimatedTaxMkd).toBe(66);
   const transactions = output.book.Sheets["Realized Transactions"];
-  expect(transactions.A2.v).toBe("");
-  expect(transactions.A3.v).toBe("");
+  expect(transactions.A2.v).toBe("/");
+  expect(transactions.A3.v).toBe("/");
   expect(transactions.B2.v).toBe("2025-01-10");
   expect(transactions.B2.f).toContain("TEXT(DATE(RIGHT(");
   expect(transactions.B3.v).toBe("2025-01-11");

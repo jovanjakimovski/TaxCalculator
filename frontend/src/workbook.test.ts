@@ -137,6 +137,55 @@ it("exports five translated sheets with intact original data and updated purchas
   }
 });
 
+it("highlights only titles of activity statement sections used by the report", async () => {
+  const extraSections = [
+    "Mark-to-Market Performance Summary,Header,Asset Category,Symbol,Prior Quantity,Current Quantity",
+    "Corporate Actions,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity",
+    "Grant Activity,Header,Asset Category,Symbol,Date/Time",
+    "Unrelated Section,Header,Label",
+  ].join("\n");
+  const output = await generate(`${sample}\n${extraSections}`);
+  const original = output.book.Sheets[names.en[0]];
+  const statementRows = rows(original);
+  const archive = XLSX.CFB.read(new Uint8Array(output.workbook), {
+    type: "array",
+  });
+  const stylesXml = new TextDecoder().decode(
+    Uint8Array.from(XLSX.CFB.find(archive, "/xl/styles.xml").content),
+  );
+  const titleRow = (section: string) =>
+    statementRows.findIndex(
+      (row) => row[0] === section && row[1] === "Header",
+    ) + 1;
+
+  for (const section of [
+    "Statement",
+    "Trades",
+    "Mark-to-Market Performance Summary",
+    "Corporate Actions",
+    "Grant Activity",
+  ]) {
+    const row = titleRow(section);
+    expect(row).toBeGreaterThan(0);
+    expect(original[`A${row}`].s).toMatchObject({
+      fgColor: { rgb: "DCEFE6" },
+    });
+    expect(original[`B${row}`].s).not.toMatchObject({
+      fgColor: { rgb: "DCEFE6" },
+    });
+  }
+
+  const unrelatedRow = titleRow("Unrelated Section");
+  expect(original[`A${unrelatedRow}`].s).not.toMatchObject({
+    fgColor: { rgb: "DCEFE6" },
+  });
+  expect(stylesXml).toContain('<color rgb="123E43"/>');
+  expect(stylesXml).toContain("FFDCEFE6");
+  expect(statementRows.slice(-4)).toEqual(
+    extraSections.split("\n").map((line) => line.split(",")),
+  );
+});
+
 it("nets stock, both IBKR option formats and gross dividends by underlying symbol and month", async () => {
   const csvText = [
     sample,

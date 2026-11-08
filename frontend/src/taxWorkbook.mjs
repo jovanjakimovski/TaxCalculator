@@ -90,6 +90,17 @@ const workbookTranslations = {
   },
 };
 
+const activitySectionsUsedForReport = new Set([
+  "Statement",
+  "Account Information",
+  "Trades",
+  "Mark-to-Market Performance Summary",
+  "Corporate Actions",
+  "Dividends",
+  "Withholding Tax",
+  "Interest",
+]);
+
 function writeWorkbookWithCalculationHeader(workbook, sheetName, header) {
   const output = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
   // The writer drops rich-text runs, so preserve both font styles in the XLSX XML.
@@ -993,6 +1004,10 @@ async function buildTaxWorkbook({
     ...wrappedHeaderStyle,
     border: { bottom: { style: "medium", color: { rgb: "286258" } } },
   };
+  const activitySectionTitleStyle = {
+    font: { bold: true, color: { rgb: "123E43" } },
+    fill: { fgColor: { rgb: "DCEFE6" } },
+  };
   const styleHeader = (sheet, row, lastColumn, style = headerStyle) => {
     for (let column = 0; column <= lastColumn; column++) {
       const cell = XLSX.utils.encode_cell({ r: row, c: column });
@@ -1026,6 +1041,16 @@ async function buildTaxWorkbook({
     }),
   );
   styleHeader(rates, 0, 1);
+  originalRows.forEach((row, index) => {
+    const section = String(row[0] ?? "").trim();
+    const isRelevantSection =
+      activitySectionsUsedForReport.has(section) ||
+      /transfer|grant|award/i.test(section);
+    if (row[1] === "Header" && isRelevantSection) {
+      const titleCell = original[XLSX.utils.encode_cell({ r: index, c: 0 })];
+      if (titleCell) titleCell.s = activitySectionTitleStyle;
+    }
+  });
   styleHeader(transactions, 0, 12, wrappedHeaderStyle);
   transactions["!rows"] = [{ hpt: 54 }];
   for (let row = 1; row < transactionEndRow; row++) {

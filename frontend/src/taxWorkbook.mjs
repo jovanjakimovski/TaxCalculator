@@ -411,19 +411,31 @@ async function buildTaxWorkbook({
     ) {
       const date = dateText(row[3]);
       const description = String(row[4] ?? "");
-      const key = `${date}|${dividendSymbol(description)}|${dividendDescription(description)}`;
+      // IBKR can label gross dividends and their tax rows differently; the
+      // report nets those rows by payment date and underlying symbol.
+      const key = `${date}|${dividendSymbol(description)}`;
       let entry = dividendsByKey.get(key);
       if (!entry) {
         const rate = rateFor(date);
         entry = {
           date,
           symbol: dividendSymbol(description),
-          description: dividendDescription(description),
+          description:
+            row[0] === "Dividends" ? dividendDescription(description) : "",
           rate,
           gross: [],
           withholding: [],
         };
         dividendsByKey.set(key, entry);
+      }
+      if (row[0] === "Dividends") {
+        const grossDescription = dividendDescription(description);
+        const descriptions = entry.description.split(" | ");
+        if (!descriptions.includes(grossDescription)) {
+          entry.description = [...descriptions, grossDescription]
+            .filter(Boolean)
+            .join(" | ");
+        }
       }
       entry[row[0] === "Dividends" ? "gross" : "withholding"].push({
         sheetRow,

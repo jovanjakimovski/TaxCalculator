@@ -396,6 +396,27 @@ it.each(["en", "mk"] as const)(
   },
 );
 
+it("exports purchase dates from starred ClosedLot rows", async () => {
+  const csvText = [
+    'Statement,Data,Period,"January 1, 2026 - January 31, 2026"',
+    "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code",
+    "Trades,Data,Order,Stocks,USD,SYN,2026-01-10,-2,60,60,120,0,-120,10,0,C",
+    'Trades,Data,ClosedLot*,Stocks,USD,SYN,"2025-11-03, 10:22:31",1,60,,,,60,5,,ST',
+    'Trades,Data,ClosedLot*,Stocks,USD,SYN,"2025-12-03, 11:14:06",1,60,,,,60,5,,ST',
+  ].join("\n");
+  const output = await generate(csvText, "en", rates("2026-01-01", "2026-01-31"));
+
+  expect(output.calculationResult.rows[0]).toMatchObject({
+    purchaseDateRange: { earliest: "2025-11-03", latest: "2025-12-03" },
+    holdingExempt: false,
+    lots: [
+      { purchaseDate: "2025-11-03" },
+      { purchaseDate: "2025-12-03" },
+    ],
+  });
+  expect(output.book.Sheets["Realized Transactions"].A2.v).toBe("2025-12-03");
+});
+
 it("excludes an older lot's loss while retaining a taxable lot's gain and parses US purchase dates", async () => {
   const csvText = [
     'Statement,Data,Period,"January 1, 2025 - February 28, 2025"',
@@ -528,6 +549,26 @@ it("normalizes older income dates and nets signed withholding refunds without re
   expect(transactions.B2.f).toContain("TEXT(DATE(RIGHT(");
   expect(transactions.B3.v).toBe("2025-01-11");
   expect(transactions.B3.f).toContain("TEXT(DATE(RIGHT(");
+});
+
+it("matches withholding to gross dividends by date and symbol when broker descriptions differ", async () => {
+  const csvText = [
+    'Statement,Data,Period,"January 1, 2025 - April 30, 2025"',
+    'Dividends,Data,USD,4/10/2025,"TSM(US8740391003) Cash Dividend USD 0.677693 per Share (Ordinary Div - NRA Withholding Exempt)",0.68',
+    'Withholding Tax,Data,USD,4/10/2025,"TSM(US8740391003) Cash Dividend USD 0.677693 per Share - TW Tax",-0.14',
+  ].join("\n");
+  const output = await generate(csvText, "en", rates("2025-04-01", "2025-04-30"));
+
+  expect(output.calculationResult.dividends).toHaveLength(1);
+  expect(output.calculationResult.dividends[0]).toMatchObject({
+    date: "2025-04-10",
+    symbol: "TSM",
+    grossUsd: 0.68,
+    withholdingUsd: 0.14,
+    netUsd: 0.54,
+  });
+  expect(output.calculationResult.dividendWithholdingUsd).toBeCloseTo(0.14);
+  expect(output.calculationResult.estimatedTaxMkd).toBe(5);
 });
 
 it("converts every event to MKD before netting, and reconciles grouped cells with summary and UI totals", async () => {

@@ -110,7 +110,7 @@ export function stockPurchaseHistory(csvRows) {
       if (category !== "Stocks") return;
       // Fills and ClosedLot rows supplement Orders; neither changes inventory.
       const discriminator = row[headerIndex(header, "DataDiscriminator")];
-      if (["Trade", "ClosedLot"].includes(discriminator)) return;
+      if (["Trade", "ClosedLot", "ClosedLot*"].includes(discriminator)) return;
       if (discriminator !== "Order") {
         disable(symbol);
         return;

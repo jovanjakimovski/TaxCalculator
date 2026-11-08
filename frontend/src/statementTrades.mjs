@@ -79,16 +79,17 @@ function validIsoDate(value) {
 
 function purchaseDate(value, sheetRow) {
   const text = String(value ?? "").trim();
-  const match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  const normalized = match
-    ? `${match[3]}-${match[1].padStart(2, "0")}-${match[2].padStart(2, "0")}`
-    : text;
+  const usDate = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const isoDate = text.match(/^(\d{4}-\d{2}-\d{2})(?:,\s+\d{2}:\d{2}:\d{2})?$/);
+  const normalized = usDate
+    ? `${usDate[3]}-${usDate[1].padStart(2, "0")}-${usDate[2].padStart(2, "0")}`
+    : isoDate?.[1] ?? text;
   if (!validIsoDate(normalized)) {
     throw new Error(
       `Row ${sheetRow}: invalid ClosedLot purchase date. Use YYYY-MM-DD or M/D/YYYY.`,
     );
   }
-  return { purchaseDate: normalized, dateFormat: match ? "mdy" : "iso" };
+  return { purchaseDate: normalized, dateFormat: usDate ? "mdy" : "iso" };
 }
 
 function reconciles(actual, expected, lotCount) {
@@ -144,7 +145,7 @@ export function statementTrades(csvRows) {
       currentOrder = { trade, sheetRow };
       return;
     }
-    if (sourceRow[2] !== "ClosedLot") return;
+    if (!["ClosedLot", "ClosedLot*"].includes(sourceRow[2])) return;
 
     const parent = currentOrder?.trade;
     const parentIsSupported = ["Stocks", "Equity and Index Options"].includes(

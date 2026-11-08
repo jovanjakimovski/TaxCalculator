@@ -92,6 +92,21 @@ const optionLot = (date = "2024-01-03") => {
 };
 
 describe("IBKR trade orders and closed lots", () => {
+  it("accepts starred ClosedLot rows from IBKR exports", () => {
+    const starredLot = lot();
+    starredLot[2] = "ClosedLot*";
+    starredLot[6] = "2020-01-03, 10:22:31";
+    const sale = order();
+    sale[7] = "-2";
+    sale[12] = "-50";
+    sale[13] = "29.5";
+    const trades = statementTrades([header, sale, starredLot]);
+
+    expect(trades.get(2)?.lots).toMatchObject([
+      { purchaseDate: "2020-01-03", quantity: 2, basis: 50, usdResult: 29.5 },
+    ]);
+  });
+
   it("normalizes Exchange columns and retains original worksheet coordinates", () => {
     const trades = statementTrades([
       exchange(header),

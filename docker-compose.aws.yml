@@ -81,6 +81,8 @@ services:
         VITE_COGNITO_LOGOUT_REDIRECT_URI: ${COGNITO_LOGOUT_REDIRECT_URI:-}
     restart: unless-stopped
     environment:
+      TAX_API_HOST: backend
+      LICENSE_API_HOST: license-api
       COGNITO_IDP_ORIGIN: ${COGNITO_IDP_ORIGIN:-}
       TRUSTED_PROXY_CIDR: ${TRUSTED_PROXY_CIDR:-127.0.0.1/32}
     depends_on:

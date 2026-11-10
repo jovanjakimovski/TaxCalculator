@@ -1,0 +1,10 @@
+[Unit]
+Description=Deploy the latest verified TaxCalculator release
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/opt/taxcalculator/.env
+ExecStart=/opt/taxcalculator/scripts/lightsail-update.sh
+TimeoutStartSec=6min

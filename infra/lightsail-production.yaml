@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: TaxCalculator production on the $5/month 1 GB IPv6-only Lightsail plan with optional CloudFront.
+
+Parameters:
+  InstanceName:
+    Type: String
+    Default: taxcalculator-prod
+    AllowedPattern: '[A-Za-z0-9-]+'
+  RepositoryUrl:
+    Type: String
+    Default: https://github.com/jovanjakimovski/TaxCalculator.git
+  GitRef:
+    Type: String
+    Default: lightsail-production
+    AllowedPattern: '[A-Za-z0-9._/-]+'
+    Description: Branch or commit ref containing the bootstrap files. Use main after this change is merged.
+  OriginDomainName:
+    Type: String
+    Default: ''
+    Description: DNS name whose AAAA record points to the instance IPv6 address, e.g. origin.example.com. Leave empty for initial instance creation.
+  AppDomainName:
+    Type: String
+    Default: ''
+    Description: Public application hostname attached to CloudFront, e.g. app.example.com. Leave empty to use the CloudFront domain while bootstrapping.
+  CloudFrontCertificateArn:
+    Type: String
+    Default: ''
+    Description: Optional ACM certificate ARN in us-east-1 that covers AppDomainName.
+  CloudFrontOriginToken:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    MaxLength: 128
+    AllowedPattern: '[A-Fa-f0-9]+'
+    Description: 32-byte-or-longer hex secret shared with the instance .env to prevent direct origin access.
+
+Conditions:
+  HasOriginDomain: !Not [!Equals [!Ref OriginDomainName, '']]
+  HasAppDomain: !Not [!Equals [!Ref AppDomainName, '']]
+  HasCertificate: !Not [!Equals [!Ref CloudFrontCertificateArn, '']]
+
+Resources:
+  AppInstance:
+    Type: AWS::Lightsail::Instance
+    Properties:
+      InstanceName: !Ref InstanceName
+      BlueprintId: ubuntu_24_04
+      BundleId: micro_ipv6_3_0
+      Location:
+        AvailabilityZone: eu-central-1a
+        RegionName: eu-central-1
+      AddOns:
+        - AddOnType: AutoSnapshot
+          Status: Enabled
+      Networking:
+        Ports:
+          - AccessDirection: inbound
+            CidrListAliases: [lightsail-connect]
+            FromPort: 22
+            ToPort: 22
+            Protocol: tcp
+          - AccessDirection: inbound
+            AccessFrom: Anywhere (0.0.0.0/0 and ::/0)
+            AccessType: Public
+            Ipv6Cidrs: ['::/0']
+            FromPort: 80
+            ToPort: 80
+            Protocol: tcp
+          - AccessDirection: inbound
+            AccessFrom: Anywhere (0.0.0.0/0 and ::/0)
+            AccessType: Public
+            Ipv6Cidrs: ['::/0']
+            FromPort: 443
+            ToPort: 443
+            Protocol: tcp
+      Tags:
+        - Key: Application
+          Value: TaxCalculator
+        - Key: Environment
+          Value: production
+      UserData: !Sub |
+        #!/bin/bash
+        set -euo pipefail
+        curl --fail --silent --show-error --location --retry 5 \
+          https://raw.githubusercontent.com/jovanjakimovski/TaxCalculator/${GitRef}/scripts/lightsail-bootstrap.sh \
+          --output /root/lightsail-bootstrap.sh
+        bash /root/lightsail-bootstrap.sh '${RepositoryUrl}' '${GitRef}'
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: HasOriginDomain
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: TaxCalculator IPv6-only Lightsail origin
+        PriceClass: PriceClass_100
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        Aliases: !If [HasAppDomain, [!Ref AppDomainName], !Ref AWS::NoValue]
+        ViewerCertificate: !If
+          - HasCertificate
+          - AcmCertificateArn: !Ref CloudFrontCertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: LightsailOrigin
+            DomainName: !Ref OriginDomainName
+            OriginCustomHeaders:
+              - HeaderName: X-TaxCalculator-Origin
+                HeaderValue: !Ref CloudFrontOriginToken
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+              IpAddressType: ipv6
+              OriginReadTimeout: 60
+        DefaultCacheBehavior:
+          TargetOriginId: LightsailOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+        CacheBehaviors:
+          - PathPattern: /assets/*
+            TargetOriginId: LightsailOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+        Restrictions:
+          GeoRestriction:
+            RestrictionType: none
+
+Outputs:
+  InstanceName:
+    Value: !Ref AppInstance
+  InstanceIpv6Address:
+    Value: !Select [0, !GetAtt AppInstance.Ipv6Addresses]
+    Description: Create an AAAA record for the chosen origin hostname with this value.
+  CloudFrontDomainName:
+    Condition: HasOriginDomain
+    Value: !GetAtt CloudFrontDistribution.DomainName
+  CloudFrontDistributionId:
+    Condition: HasOriginDomain
+    Value: !Ref CloudFrontDistribution

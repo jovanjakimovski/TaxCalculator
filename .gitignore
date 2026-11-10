@@ -11,6 +11,7 @@
 /.env
 /.env.*
 !/.env.example
+!/.env.lightsail.example
 /Excel/
 /outputs/
 /Car-Vertial-Sample-Report/

@@ -1,0 +1,123 @@
+# Low-memory production profile for an IPv6-only Lightsail instance.
+# Images are built by GitHub Actions; never build the Java images on the host.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    mem_limit: 160m
+    command: ["postgres", "-c", "shared_buffers=32MB", "-c", "work_mem=1MB", "-c", "maintenance_work_mem=16MB", "-c", "max_connections=20"]
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD}
+      TAX_DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      LICENSE_DB_PASSWORD: ${LICENSE_DB_PASSWORD:?Set LICENSE_DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/lightsail-postgres-init.sh:/docker-entrypoint-initdb.d/10-create-app-databases.sh:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  backend:
+    image: ghcr.io/jovanjakimovski/taxcalculator-backend:${RELEASE_TAG:-latest}
+    restart: unless-stopped
+    mem_limit: 256m
+    network_mode: host
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://127.0.0.1:5432/taxcalculator
+      DATABASE_USERNAME: taxcalculator
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: 4
+      JAVA_TOOL_OPTIONS: -Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:MaxDirectMemorySize=24m -Xss512k -XX:+ExitOnOutOfMemoryError
+      PORT: 8080
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  license-api:
+    image: ghcr.io/jovanjakimovski/taxcalculator-license-api:${RELEASE_TAG:-latest}
+    restart: unless-stopped
+    mem_limit: 256m
+    network_mode: host
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      LICENSE_DATABASE_URL: jdbc:postgresql://127.0.0.1:5432/license
+      LICENSE_DATABASE_USERNAME: license
+      LICENSE_DATABASE_PASSWORD: ${LICENSE_DB_PASSWORD:?Set LICENSE_DB_PASSWORD}
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: 4
+      JAVA_TOOL_OPTIONS: -Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:MaxDirectMemorySize=24m -Xss512k -XX:+ExitOnOutOfMemoryError
+      LICENSE_TEST_MODE: "false"
+      PAYMENT_TEST_MODE: "false"
+      LICENSE_ALLOW_ANONYMOUS_CHECKOUT: "false"
+      LICENSE_REQUIRE_ACCOUNT_AUTH: "true"
+      LEMON_SQUEEZY_API_KEY: ${LEMON_SQUEEZY_API_KEY:-}
+      LEMON_SQUEEZY_STORE_ID: ${LEMON_SQUEEZY_STORE_ID:-}
+      LEMON_SQUEEZY_VARIANT_ID: ${LEMON_SQUEEZY_VARIANT_ID:-}
+      LEMON_SQUEEZY_VARIANT_TWO_ID: ${LEMON_SQUEEZY_VARIANT_TWO_ID:-}
+      LEMON_SQUEEZY_VARIANT_THREE_ID: ${LEMON_SQUEEZY_VARIANT_THREE_ID:-}
+      LEMON_SQUEEZY_WEBHOOK_SECRET: ${LEMON_SQUEEZY_WEBHOOK_SECRET:-}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:?Set APP_PUBLIC_URL}
+      COGNITO_ISSUER_URI: ${COGNITO_ISSUER_URI:?Set COGNITO_ISSUER_URI}
+      COGNITO_APP_CLIENT_ID: ${COGNITO_APP_CLIENT_ID:?Set COGNITO_APP_CLIENT_ID}
+      PORT: 8081
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  frontend:
+    image: ghcr.io/jovanjakimovski/taxcalculator-frontend:${RELEASE_TAG:-latest}
+    restart: unless-stopped
+    mem_limit: 64m
+    environment:
+      TAX_API_HOST: host.docker.internal
+      LICENSE_API_HOST: host.docker.internal
+      COGNITO_IDP_ORIGIN: ${COGNITO_IDP_ORIGIN:?Set COGNITO_IDP_ORIGIN}
+      TRUSTED_PROXY_CIDR: ${TRUSTED_PROXY_CIDR:-172.16.0.0/12}
+      CLOUDFRONT_ORIGIN_TOKEN: ${CLOUDFRONT_ORIGIN_TOKEN:?Set CLOUDFRONT_ORIGIN_TOKEN}
+    depends_on:
+      - backend
+      - license-api
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:8080:80"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  origin-proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    mem_limit: 64m
+    network_mode: host
+    environment:
+      ORIGIN_HOSTNAME: ${ORIGIN_HOSTNAME:?Set ORIGIN_HOSTNAME}
+      TLS_EMAIL: ${TLS_EMAIL:?Set TLS_EMAIL}
+      CLOUDFRONT_ORIGIN_TOKEN: ${CLOUDFRONT_ORIGIN_TOKEN:?Set CLOUDFRONT_ORIGIN_TOKEN}
+    volumes:
+      - ./infra/lightsail-Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

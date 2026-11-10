@@ -2,6 +2,8 @@
 
 For the recommended test-stage setup with no accounts, licenses, access codes, or payment placeholders, see [DEV_DEPLOY.md](DEV_DEPLOY.md). It creates a separate CloudFormation-managed EC2 dev stack in `eu-central-1` with HTTPS and GitHub Actions deployment. The deployment instructions below remain for the existing production and licensing sandbox profiles.
 
+For a separate $5/month IPv6-only Lightsail production host with CloudFront, see [LIGHTSAIL_DEPLOY.md](LIGHTSAIL_DEPLOY.md). It is staged for migration and does not replace or remove the existing EC2 deployment.
+
 # AWS deployment
 
 This setup runs the frontend, tax API, licensing API, and two separate PostgreSQL databases on one EC2 instance. Only the frontend port is public.
